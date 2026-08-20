@@ -6,6 +6,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -27,19 +28,23 @@ import type { DashboardSummary } from '@/lib/types';
 type Month = DashboardSummary['cashflow']['months'][number];
 
 /**
- * Three series, one axis, one mark: money in, money out, and the net of the
- * two, all as grouped bars. All three are USD, so a single scale is honest.
+ * One bar per month — the net of inflow and outflow, coloured by sign — with
+ * the full breakdown (inflow, outflow, net) surfaced on hover instead of as
+ * three grouped bars. Stacking inflow and outflow wouldn't be honest here:
+ * outflow reduces the total, it doesn't add to it, so a single signed bar is
+ * the correct shape for this data, not just a tidier one.
  *
- * Colours are the first three slots of the validated categorical palette, which
- * is the range that clears colour-vision-deficiency separation for every pair.
- * Identity is never carried by colour alone: the legend is always present and the
- * same numbers are one click away as a table.
+ * Colours reuse the same positive/negative tokens as the rest of the app
+ * (gain/loss on Investments, etc.), so green/red here means the same thing
+ * it means everywhere else, and the same numbers are one click away as a table.
  */
 const SERIES = [
-  { key: 'inflow', label: 'Inflow', color: 'hsl(var(--chart-3))' },
-  { key: 'outflow', label: 'Outflow', color: 'hsl(var(--chart-2))' },
-  { key: 'net', label: 'Net', color: 'hsl(var(--chart-1))' },
+  { key: 'inflow', label: 'Inflow', color: 'hsl(var(--positive))' },
+  { key: 'outflow', label: 'Outflow', color: 'hsl(var(--negative))' },
 ] as const;
+
+const positiveColor = 'hsl(var(--positive))';
+const negativeColor = 'hsl(var(--negative))';
 
 function shortLabel(month: Month): string {
   // "Sep 2025" is too wide for twelve ticks on a laptop; "Sep" plus the year on
@@ -63,21 +68,22 @@ function CashflowTooltip({
 }): JSX.Element | null {
   if (!active || !payload?.length) return null;
   const month = payload[0].payload;
+  const rows = [...SERIES, { key: 'net' as const, label: 'Net', color: month.net >= 0 ? positiveColor : negativeColor }];
 
   return (
     <div className="rounded-md border bg-popover px-3 py-2 text-xs shadow-md">
       <p className="mb-1.5 font-medium text-popover-foreground">{month.label}</p>
       <dl className="flex flex-col gap-1">
-        {SERIES.map((series) => (
-          <div key={series.key} className="flex items-center gap-2">
+        {rows.map((row) => (
+          <div key={row.key} className="flex items-center gap-2">
             <span
               aria-hidden
               className="h-2 w-2 shrink-0 rounded-sm"
-              style={{ backgroundColor: series.color }}
+              style={{ backgroundColor: row.color }}
             />
-            <dt className="text-muted-foreground">{series.label}</dt>
+            <dt className="text-muted-foreground">{row.label}</dt>
             <dd className="ml-auto pl-4 font-medium text-popover-foreground tabular">
-              {formatMoney(month[series.key])}
+              {formatMoney(month[row.key])}
             </dd>
           </div>
         ))}
@@ -99,16 +105,20 @@ export function CashflowChart({
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <ul className="flex flex-wrap items-center gap-4">
-          {SERIES.map((series) => (
-            <li key={series.key} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          {[
+            { label: 'Net inflow', color: positiveColor },
+            { label: 'Net outflow', color: negativeColor },
+          ].map((item) => (
+            <li key={item.label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
               <span
                 aria-hidden
                 className="h-2 w-2 rounded-sm"
-                style={{ backgroundColor: series.color }}
+                style={{ backgroundColor: item.color }}
               />
-              {series.label}
+              {item.label}
             </li>
           ))}
+          <li className="text-xs text-muted-foreground">· hover a bar for the full breakdown</li>
         </ul>
 
         <Button
@@ -146,27 +156,11 @@ export function CashflowChart({
                 content={<CashflowTooltip />}
                 cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
               />
-              <Bar
-                dataKey="inflow"
-                name="Inflow"
-                fill={SERIES[0].color}
-                radius={[4, 4, 0, 0]}
-                maxBarSize={14}
-              />
-              <Bar
-                dataKey="outflow"
-                name="Outflow"
-                fill={SERIES[1].color}
-                radius={[4, 4, 0, 0]}
-                maxBarSize={14}
-              />
-              <Bar
-                dataKey="net"
-                name="Net"
-                fill={SERIES[2].color}
-                radius={[4, 4, 0, 0]}
-                maxBarSize={14}
-              />
+              <Bar dataKey="net" name="Net" radius={[4, 4, 4, 4]} maxBarSize={22}>
+                {data.map((month) => (
+                  <Cell key={month.month} fill={month.net >= 0 ? positiveColor : negativeColor} />
+                ))}
+              </Bar>
             </BarChart>
           </ResponsiveContainer>
         </div>
