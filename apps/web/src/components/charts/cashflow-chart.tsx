@@ -133,30 +133,36 @@ export function CashflowChart({
       </div>
 
       {hasActivity ? (
-        <div className="h-[260px] w-full">
+        <div className="w-full" style={{ height: Math.max(280, data.length * 32) }}>
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 8 }} barGap={2}>
-              <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
+            <BarChart
+              data={data}
+              layout="vertical"
+              margin={{ top: 8, right: 24, bottom: 0, left: 8 }}
+              barGap={2}
+            >
+              <CartesianGrid horizontal={false} stroke="hsl(var(--border))" strokeDasharray="3 3" />
               <XAxis
-                dataKey="tick"
+                type="number"
                 tickLine={false}
                 axisLine={false}
-                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                interval="preserveStartEnd"
-              />
-              <YAxis
-                tickLine={false}
-                axisLine={false}
-                width={56}
                 tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
                 tickFormatter={(value: number) => formatCompactMoney(value)}
               />
-              <ReferenceLine y={0} stroke="hsl(var(--border))" />
+              <YAxis
+                dataKey="tick"
+                type="category"
+                tickLine={false}
+                axisLine={false}
+                width={52}
+                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+              />
+              <ReferenceLine x={0} stroke="hsl(var(--border))" />
               <Tooltip
                 content={<CashflowTooltip />}
                 cursor={{ fill: 'hsl(var(--muted))', opacity: 0.5 }}
               />
-              <Bar dataKey="net" name="Net" radius={[4, 4, 4, 4]} maxBarSize={22}>
+              <Bar dataKey="net" name="Net" radius={[4, 4, 4, 4]} maxBarSize={20}>
                 {data.map((month) => (
                   <Cell key={month.month} fill={month.net >= 0 ? positiveColor : negativeColor} />
                 ))}
