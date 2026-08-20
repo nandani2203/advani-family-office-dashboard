@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import { AssetType } from '@prisma/client';
-import { IsEnum, IsOptional, IsString, Length, MaxLength } from 'class-validator';
+import { IsEnum, IsIn, IsOptional, IsString, IsUrl, Length, MaxLength } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 export class CreateAssetDto {
@@ -36,6 +36,12 @@ export class CreateAssetDto {
   @IsString()
   @MaxLength(2000)
   description?: string;
+
+  @ApiPropertyOptional({ description: 'A logo image URL — shown next to the name in lists.' })
+  @IsOptional()
+  @IsUrl()
+  @MaxLength(500)
+  logoUrl?: string;
 }
 
 export class UpdateAssetDto extends PartialType(CreateAssetDto) {}
@@ -50,4 +56,13 @@ export class AssetQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsString()
   sector?: string;
+
+  @ApiPropertyOptional({
+    enum: ['ACTIVE', 'ARCHIVED'],
+    default: 'ACTIVE',
+    description: 'Defaults to ACTIVE (archived assets are hidden unless asked for).',
+  })
+  @IsOptional()
+  @IsIn(['ACTIVE', 'ARCHIVED'])
+  status?: 'ACTIVE' | 'ARCHIVED';
 }

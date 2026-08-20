@@ -1,7 +1,7 @@
 'use client';
 
 import { Loader2, Pencil, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -96,14 +96,18 @@ export function RowActionButtons({
   onDelete,
   editLabel,
   deleteLabel,
+  extra,
 }: {
   onEdit?: () => void;
   onDelete?: () => void;
   editLabel: string;
   deleteLabel?: string;
+  /** Extra row actions before edit/delete — e.g. a "Restore" button for an archived row. */
+  extra?: ReactNode;
 }): JSX.Element {
   return (
     <div className="flex items-center justify-end gap-1">
+      {extra}
       {onEdit ? (
         <Button
           variant="ghost"

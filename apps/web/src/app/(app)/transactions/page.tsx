@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react';
 import { useState } from 'react';
 import { ConfirmDialog, RowActionButtons } from '@/components/confirm-dialog';
 import { Column, DataTable } from '@/components/data-table';
+import { ExportButton } from '@/components/export-button';
 import {
   DateRangeFilter,
   FilterBar,
@@ -205,6 +206,22 @@ export default function TransactionsPage(): JSX.Element {
         title="Transactions"
         description="The cashflow ledger — capital calls, purchases, sales, fees and income. Voided entries stay on the record but are excluded from every total."
       >
+        <ExportButton<Transaction>
+          path="/transactions"
+          filters={list.effectiveFilters}
+          filename="transactions.csv"
+          headers={['Date', 'Position', 'Type', 'Direction', 'Amount', 'Status', 'Reference', 'Description']}
+          toRow={(transaction) => [
+            formatDate(transaction.occurredAt),
+            transaction.investment.vehicleName,
+            TRANSACTION_TYPE_LABELS[transaction.type],
+            transaction.direction,
+            transaction.amount,
+            TRANSACTION_STATUS_LABELS[transaction.status],
+            transaction.reference ?? '',
+            transaction.description ?? '',
+          ]}
+        />
         {canEdit ? (
           <Button
             size="sm"

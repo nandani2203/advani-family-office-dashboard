@@ -70,6 +70,8 @@ export interface Asset {
   sector: string | null;
   currency: string;
   description: string | null;
+  logoUrl: string | null;
+  archivedAt: string | null;
   createdAt: string;
   _count?: { investments: number };
 }

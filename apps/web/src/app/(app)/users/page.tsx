@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog, RowActionButtons } from '@/components/confirm-dialog';
 import { Column, DataTable } from '@/components/data-table';
+import { ExportButton } from '@/components/export-button';
 import {
   FilterBar,
   FilterSelect,
@@ -229,18 +230,33 @@ function StaffTable({
             />
           </FilterBar>
 
-          {isAdmin ? (
-            <Button
-              size="sm"
-              onClick={() => {
-                setInvite({ email: '', name: '', role: 'VIEWER' });
-                setInviteOpen(true);
-              }}
-            >
-              <Plus className="h-4 w-4" />
-              Invite user
-            </Button>
-          ) : null}
+          <div className="flex items-center gap-2">
+            <ExportButton<ApiUser>
+              path="/users"
+              filters={list.effectiveFilters}
+              filename="users.csv"
+              headers={['Name', 'Email', 'Role', 'Status', 'Last sign-in']}
+              toRow={(user) => [
+                user.name ?? '',
+                user.email,
+                ROLE_LABELS[user.role],
+                USER_STATUS_LABELS[user.status],
+                user.lastLoginAt ? formatDateTime(user.lastLoginAt) : 'Never',
+              ]}
+            />
+            {isAdmin ? (
+              <Button
+                size="sm"
+                onClick={() => {
+                  setInvite({ email: '', name: '', role: 'VIEWER' });
+                  setInviteOpen(true);
+                }}
+              >
+                <Plus className="h-4 w-4" />
+                Invite user
+              </Button>
+            ) : null}
+          </div>
         </div>
 
         <DataTable

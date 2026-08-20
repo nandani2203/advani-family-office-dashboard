@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Asset, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { Paginated, paginate, resolveOrderBy } from '../../common/dto/pagination.dto';
@@ -12,6 +12,7 @@ export class AssetsService {
 
   async findAll(query: AssetQueryDto): Promise<Paginated<Asset>> {
     const where: Prisma.AssetWhereInput = {
+      archivedAt: query.status === 'ARCHIVED' ? { not: null } : null,
       ...(query.type ? { type: query.type } : {}),
       ...(query.sector ? { sector: { equals: query.sector, mode: 'insensitive' } } : {}),
       ...(query.search
@@ -39,9 +40,10 @@ export class AssetsService {
     return paginate(data, total, query);
   }
 
-  /** Lightweight list for populating select inputs. */
+  /** Lightweight list for populating select inputs. Archived assets can't be picked for a new position. */
   async options(): Promise<Array<{ id: string; name: string; type: string }>> {
     return this.prisma.asset.findMany({
+      where: { archivedAt: null },
       select: { id: true, name: true, type: true },
       orderBy: { name: 'asc' },
     });
@@ -78,18 +80,21 @@ export class AssetsService {
     return this.prisma.asset.update({ where: { id }, data: dto });
   }
 
+  /**
+   * Soft delete — sets `archivedAt` instead of removing the row, so every
+   * investment, transaction and distribution that points at this asset keeps
+   * its history intact. Hidden from the default list and the options picker;
+   * still reachable directly and via the Archived filter, and reversible.
+   */
   async remove(id: string): Promise<{ id: string }> {
-    const investments = await this.prisma.investment.count({ where: { assetId: id } });
-
-    if (investments > 0) {
-      throw new BadRequestException(
-        `This asset is referenced by ${investments} investment(s). Remove those first.`,
-      );
-    }
-
     await this.ensureExists(id);
-    await this.prisma.asset.delete({ where: { id } });
+    await this.prisma.asset.update({ where: { id }, data: { archivedAt: new Date() } });
     return { id };
+  }
+
+  async restore(id: string): Promise<Asset> {
+    await this.ensureExists(id);
+    return this.prisma.asset.update({ where: { id }, data: { archivedAt: null } });
   }
 
   private async ensureExists(id: string): Promise<void> {

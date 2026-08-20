@@ -1,9 +1,11 @@
 'use client';
 
-import { Plus } from 'lucide-react';
+import { ArchiveRestore, Plus } from 'lucide-react';
 import { useState } from 'react';
+import { AssetLogo } from '@/components/asset-logo';
 import { ConfirmDialog, RowActionButtons } from '@/components/confirm-dialog';
 import { Column, DataTable } from '@/components/data-table';
+import { ExportButton } from '@/components/export-button';
 import {
   FilterBar,
   FilterSelect,
@@ -24,11 +26,12 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { api } from '@/lib/api-client';
+import { ApiError, api } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { formatDate, formatNumber } from '@/lib/format';
 import { useList } from '@/lib/use-list';
 import { ASSET_TYPE_LABELS, type Asset, type AssetType } from '@/lib/types';
+import { toast } from 'sonner';
 
 interface AssetDraft {
   name: string;
@@ -36,6 +39,7 @@ interface AssetDraft {
   ticker: string;
   sector: string;
   description: string;
+  logoUrl: string;
 }
 
 const EMPTY_DRAFT: AssetDraft = {
@@ -44,7 +48,10 @@ const EMPTY_DRAFT: AssetDraft = {
   ticker: '',
   sector: '',
   description: '',
+  logoUrl: '',
 };
+
+const STATUS_LABELS = { ACTIVE: 'Active', ARCHIVED: 'Archived' } as const;
 
 export default function AssetsPage(): JSX.Element {
   const { canEdit, isAdmin } = useAuth();
@@ -53,7 +60,7 @@ export default function AssetsPage(): JSX.Element {
   const [editing, setEditing] = useState<Asset | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [draft, setDraft] = useState<AssetDraft>(EMPTY_DRAFT);
-  const [deleting, setDeleting] = useState<Asset | null>(null);
+  const [archiving, setArchiving] = useState<Asset | null>(null);
 
   const openCreate = (): void => {
     setEditing(null);
@@ -69,6 +76,7 @@ export default function AssetsPage(): JSX.Element {
       ticker: asset.ticker ?? '',
       sector: asset.sector ?? '',
       description: asset.description ?? '',
+      logoUrl: asset.logoUrl ?? '',
     });
     setFormOpen(true);
   };
@@ -82,6 +90,7 @@ export default function AssetsPage(): JSX.Element {
       ticker: draft.ticker.trim() || undefined,
       sector: draft.sector.trim() || undefined,
       description: draft.description.trim() || undefined,
+      logoUrl: draft.logoUrl.trim() || undefined,
     };
 
     if (editing) await api.patch(`/assets/${editing.id}`, payload);
@@ -90,19 +99,35 @@ export default function AssetsPage(): JSX.Element {
     list.refresh();
   };
 
+  const restore = async (asset: Asset): Promise<void> => {
+    try {
+      await api.patch(`/assets/${asset.id}/restore`);
+      toast.success(`${asset.name} restored.`);
+      list.refresh();
+    } catch (cause) {
+      toast.error(cause instanceof ApiError ? cause.detail : 'Could not restore that asset.');
+    }
+  };
+
   const columns: Array<Column<Asset>> = [
     {
       key: 'name',
       header: 'Asset',
       sortable: true,
       render: (asset) => (
-        <div className="min-w-0">
-          <p className="truncate font-medium">{asset.name}</p>
-          {asset.description ? (
-            <p className="max-w-[380px] truncate text-xs text-muted-foreground">
-              {asset.description}
+        <div className="flex min-w-0 items-center gap-2.5">
+          <AssetLogo name={asset.name} logoUrl={asset.logoUrl} />
+          <div className="min-w-0">
+            <p className="flex items-center gap-2 truncate font-medium">
+              {asset.name}
+              {asset.archivedAt ? <Badge variant="muted">Archived</Badge> : null}
             </p>
-          ) : null}
+            {asset.description ? (
+              <p className="max-w-[380px] truncate text-xs text-muted-foreground">
+                {asset.description}
+              </p>
+            ) : null}
+          </div>
         </div>
       ),
     },
@@ -145,7 +170,7 @@ export default function AssetsPage(): JSX.Element {
     },
   ];
 
-  const filtersActive = Boolean(list.filters.search || list.filters.type);
+  const filtersActive = Boolean(list.filters.search || list.filters.type || list.filters.status);
 
   return (
     <>
@@ -153,6 +178,21 @@ export default function AssetsPage(): JSX.Element {
         title="Assets"
         description="The underlying companies, funds and tokens a position can point at."
       >
+        <ExportButton<Asset>
+          path="/assets"
+          filters={list.effectiveFilters}
+          filename="assets.csv"
+          headers={['Name', 'Type', 'Ticker', 'Sector', 'Positions', 'Status', 'Added']}
+          toRow={(asset) => [
+            asset.name,
+            ASSET_TYPE_LABELS[asset.type],
+            asset.ticker ?? '',
+            asset.sector ?? '',
+            asset._count?.investments ?? 0,
+            asset.archivedAt ? 'Archived' : 'Active',
+            formatDate(asset.createdAt),
+          ]}
+        />
         {canEdit ? (
           <Button size="sm" onClick={openCreate}>
             <Plus className="h-4 w-4" />
@@ -173,11 +213,18 @@ export default function AssetsPage(): JSX.Element {
           anyLabel="Any type"
           options={optionsFrom(ASSET_TYPE_LABELS)}
         />
+        <FilterSelect
+          value={list.filters.status as string | undefined}
+          onChange={(value) => list.setFilter('status', value)}
+          anyLabel="Active"
+          options={optionsFrom(STATUS_LABELS)}
+        />
         <ResetFilters
           active={filtersActive}
           onReset={() => {
             list.setFilter('search', undefined);
             list.setFilter('type', undefined);
+            list.setFilter('status', undefined);
           }}
         />
       </FilterBar>
@@ -206,9 +253,24 @@ export default function AssetsPage(): JSX.Element {
             ? (asset) => (
                 <RowActionButtons
                   onEdit={() => openEdit(asset)}
-                  onDelete={isAdmin ? () => setDeleting(asset) : undefined}
+                  onDelete={
+                    isAdmin && !asset.archivedAt ? () => setArchiving(asset) : undefined
+                  }
                   editLabel={`Edit ${asset.name}`}
-                  deleteLabel={`Delete ${asset.name}`}
+                  deleteLabel={`Archive ${asset.name}`}
+                  extra={
+                    isAdmin && asset.archivedAt ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        aria-label={`Restore ${asset.name}`}
+                        onClick={() => void restore(asset)}
+                      >
+                        <ArchiveRestore className="h-4 w-4" />
+                      </Button>
+                    ) : undefined
+                  }
                 />
               )
             : undefined
@@ -288,17 +350,33 @@ export default function AssetsPage(): JSX.Element {
             placeholder="What this holding is, and how we got into it."
           />
         </Field>
+
+        <Field
+          label="Logo URL"
+          htmlFor="asset-logo"
+          hint="Optional — shown next to the name in lists. Falls back to initials if left blank or unreachable."
+        >
+          <Input
+            id="asset-logo"
+            type="url"
+            maxLength={500}
+            value={draft.logoUrl}
+            onChange={(event) => setDraft({ ...draft, logoUrl: event.target.value })}
+            placeholder="https://www.google.com/s2/favicons?domain=spacex.com&sz=128"
+          />
+        </Field>
       </FormSheet>
 
       <ConfirmDialog
-        open={deleting !== null}
-        onOpenChange={(open) => !open && setDeleting(null)}
-        title={`Delete ${deleting?.name ?? 'asset'}?`}
-        description="This cannot be undone. An asset with positions against it cannot be deleted — remove those first."
-        successMessage="Asset deleted."
+        open={archiving !== null}
+        onOpenChange={(open) => !open && setArchiving(null)}
+        title={`Archive ${archiving?.name ?? 'asset'}?`}
+        description="Hides it from the active list. Positions and history against it are preserved, and you can restore it anytime from the Archived filter."
+        confirmLabel="Archive"
+        successMessage="Asset archived."
         onConfirm={async () => {
-          if (!deleting) return;
-          await api.delete(`/assets/${deleting.id}`);
+          if (!archiving) return;
+          await api.delete(`/assets/${archiving.id}`);
           list.refresh();
         }}
       />

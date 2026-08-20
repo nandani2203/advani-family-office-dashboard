@@ -6,6 +6,8 @@ import {
   Banknote,
   Building2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Coins,
   FileCheck2,
   LayoutDashboard,
@@ -72,14 +74,22 @@ const NAV: NavGroup[] = [
   },
 ];
 
-function NavLinks({ onNavigate }: { onNavigate?: () => void }): JSX.Element {
+const COLLAPSE_KEY = 'nav.collapsed';
+
+function NavLinks({
+  collapsed,
+  onNavigate,
+}: {
+  collapsed?: boolean;
+  onNavigate?: () => void;
+}): JSX.Element {
   const pathname = usePathname();
 
   return (
     <nav className="flex flex-1 flex-col gap-5 px-3 py-4">
       {NAV.map((group) => (
         <div key={group.label ?? 'root'} className="flex flex-col gap-1">
-          {group.label ? (
+          {group.label && !collapsed ? (
             <p className="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
               {group.label}
             </p>
@@ -95,15 +105,17 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }): JSX.Element {
                 href={item.href}
                 onClick={onNavigate}
                 aria-current={active ? 'page' : undefined}
+                title={collapsed ? item.label : undefined}
                 className={cn(
                   'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  collapsed && 'justify-center px-0',
                   active
                     ? 'bg-secondary text-secondary-foreground'
                     : 'text-muted-foreground hover:bg-secondary/60 hover:text-foreground',
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                {item.label}
+                {collapsed ? null : item.label}
               </Link>
             );
           })}
@@ -113,16 +125,57 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }): JSX.Element {
   );
 }
 
-function Brand(): JSX.Element {
+function Brand({
+  collapsed,
+  onToggleCollapse,
+}: {
+  collapsed: boolean;
+  /** Omitted on the mobile drawer, which has no collapsed state of its own. */
+  onToggleCollapse?: () => void;
+}): JSX.Element {
+  const logo = (
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
+      AF
+    </div>
+  );
+
+  if (collapsed) {
+    return (
+      <div className="flex flex-col items-center gap-2 border-b px-2 py-4">
+        {logo}
+        {onToggleCollapse ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6"
+            aria-label="Expand navigation"
+            onClick={onToggleCollapse}
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-2.5 border-b px-5 py-4">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
-        AF
-      </div>
-      <div className="min-w-0">
+      {logo}
+      <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold leading-tight">Advani Family Office</p>
         <p className="text-xs text-muted-foreground">Internal dashboard</p>
       </div>
+      {onToggleCollapse ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0"
+          aria-label="Collapse navigation"
+          onClick={onToggleCollapse}
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -150,9 +203,42 @@ function ThemeToggle(): JSX.Element {
   );
 }
 
-function UserMenu(): JSX.Element | null {
+function UserMenu({ collapsed }: { collapsed?: boolean }): JSX.Element | null {
   const { user, signOut } = useAuth();
   if (!user) return null;
+
+  if (collapsed) {
+    return (
+      <div className="flex flex-col items-center gap-2 border-t p-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              aria-label={`Account menu for ${user.name ?? user.email}`}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-semibold transition-colors hover:bg-secondary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {initialsFor(user.name, user.email)}
+            </button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent align="start" side="right" className="w-60">
+            <DropdownMenuLabel className="flex flex-col gap-1">
+              <span className="truncate text-sm">{user.name ?? 'Staff account'}</span>
+              <span className="truncate text-xs font-normal text-muted-foreground">
+                {user.email}
+              </span>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem destructive onSelect={() => void signOut()}>
+              <LogOut className="h-4 w-4" />
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <ThemeToggle />
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-center gap-1.5 border-t p-3">
@@ -196,48 +282,80 @@ function UserMenu(): JSX.Element | null {
 
 export function AppShell({ children }: { children: ReactNode }): JSX.Element {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const { user } = useAuth();
 
-  // Close the drawer behind any navigation, on any screen size.
+  // Close the mobile drawer behind any navigation.
   useEffect(() => setDrawerOpen(false), [pathname]);
 
+  // Restore the collapsed preference after mount only, so the server-rendered
+  // (always expanded) markup matches the client's first paint.
+  useEffect(() => {
+    setCollapsed(window.localStorage.getItem(COLLAPSE_KEY) === '1');
+  }, []);
+
+  const toggleCollapsed = (): void => {
+    setCollapsed((current) => {
+      const next = !current;
+      window.localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
+      return next;
+    });
+  };
+
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex h-screen overflow-hidden">
       {/*
-        The nav lives only in this Sheet — at every breakpoint, not just on
-        phones. Radix's Dialog content is portaled to <body> with `fixed`
-        positioning and locks background scroll while open, so the drawer
-        never travels with page scroll and the page itself can't scroll out
-        from under it while it's open. Closed by default; opened only by the
-        header's Menu button.
+        Persistent on desktop — part of the page's own layout (not an overlay),
+        so it never scrolls with `main` and is always reachable, just narrower
+        when collapsed. `main` scrolls on its own inside the h-screen/overflow
+        -hidden row below, which is what keeps the rail from moving at all.
+      */}
+      <aside
+        className={cn(
+          'hidden shrink-0 flex-col border-r bg-card transition-[width] duration-200 ease-in-out lg:flex',
+          collapsed ? 'lg:w-[68px]' : 'lg:w-64',
+        )}
+      >
+        <Brand collapsed={collapsed} onToggleCollapse={toggleCollapsed} />
+        <NavLinks collapsed={collapsed} />
+        <UserMenu collapsed={collapsed} />
+      </aside>
+
+      {/*
+        Below `lg`, there's no room for a persistent rail, so navigation lives
+        in this overlay Sheet instead — closed by default, opened only by the
+        header's Menu button. Radix's Dialog content is portaled to <body>
+        with `fixed` positioning and locks background scroll while open.
       */}
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent side="left" className="w-72 gap-0 p-0">
+        <SheetContent side="left" className="w-72 gap-0 p-0 lg:hidden">
           <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <Brand />
+          <Brand collapsed={false} />
           <NavLinks onNavigate={() => setDrawerOpen(false)} />
           <UserMenu />
         </SheetContent>
       </Sheet>
 
-      <header className="flex items-center gap-3 border-b bg-card px-4 py-3">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setDrawerOpen(true)}
-          aria-label="Open navigation"
-        >
-          <Menu className="h-4 w-4" />
-        </Button>
-        <p className="flex-1 truncate text-sm font-semibold">Advani Family Office</p>
-        {user ? <Badge variant="muted">{ROLE_LABELS[user.role]}</Badge> : null}
-        <ThemeToggle />
-      </header>
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex items-center gap-3 border-b bg-card px-4 py-3 lg:hidden">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open navigation"
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+          <p className="flex-1 truncate text-sm font-semibold">Advani Family Office</p>
+          {user ? <Badge variant="muted">{ROLE_LABELS[user.role]}</Badge> : null}
+          <ThemeToggle />
+        </header>
 
-      <main className="flex-1 bg-muted/30 px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mx-auto flex max-w-[1400px] flex-col gap-6">{children}</div>
-      </main>
+        <main className="flex-1 overflow-y-auto bg-muted/30 px-4 py-6 sm:px-6 lg:px-8">
+          <div className="mx-auto flex max-w-[1400px] flex-col gap-6">{children}</div>
+        </main>
+      </div>
     </div>
   );
 }

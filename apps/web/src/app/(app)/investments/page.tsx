@@ -4,6 +4,7 @@ import { Briefcase, LineChart, Plus, TrendingUp, Wallet } from 'lucide-react';
 import { useState } from 'react';
 import { ConfirmDialog, RowActionButtons } from '@/components/confirm-dialog';
 import { Column, DataTable } from '@/components/data-table';
+import { ExportButton } from '@/components/export-button';
 import {
   FilterBar,
   FilterSelect,
@@ -252,6 +253,33 @@ export default function InvestmentsPage(): JSX.Element {
         title="Investments"
         description="Every position we hold, through an SPV, a fund or directly. The source of truth for cost basis and ownership."
       >
+        <ExportButton<Investment>
+          path="/investments"
+          filters={list.effectiveFilters}
+          filename="investments.csv"
+          headers={[
+            'Asset',
+            'Position',
+            'Class',
+            'Vehicle',
+            'Cost basis',
+            'Valuation',
+            'Ownership %',
+            'Status',
+            'Invested',
+          ]}
+          toRow={(investment) => [
+            investment.asset.name,
+            investment.vehicleName,
+            ASSET_TYPE_LABELS[investment.asset.type],
+            VEHICLE_LABELS[investment.vehicle],
+            investment.costBasis,
+            investment.currentValuation,
+            investment.ownershipPct ?? '',
+            INVESTMENT_STATUS_LABELS[investment.status],
+            formatDate(investment.investedAt),
+          ]}
+        />
         <ValuationCalculator positions={list.rows} />
         {canEdit ? (
           <Button size="sm" onClick={openCreate} disabled={!assets || assets.length === 0}>

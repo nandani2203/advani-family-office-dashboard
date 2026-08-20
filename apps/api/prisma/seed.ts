@@ -132,7 +132,7 @@ const STAFF: Array<{ email: string; name: string; role: Role; status: UserStatus
 
 // --------------------------------------------------------------------- assets
 
-interface AssetSpec {
+export interface AssetSpec {
   name: string;
   type: AssetType;
   ticker?: string;
@@ -145,69 +145,74 @@ interface AssetSpec {
   /** Valuation ÷ cost basis. Above 1 is a mark-up, below 1 a mark-down. */
   multiple: number;
   vehicle: VehicleType;
+  /** Company/project domain for a logo lookup via Google's favicon service.
+   * Omitted where no real brand mark applies — a specific building, a fund,
+   * a credit note. (Clearbit's logo API, the more common choice for this,
+   * has no DNS records at all any more — logo.clearbit.com is dead.) */
+  logoDomain?: string;
 }
 
-const ASSETS: AssetSpec[] = [
+export const ASSETS: AssetSpec[] = [
   // ---- private equity / venture: the $2B core of the book
-  { name: 'SpaceX', type: AssetType.PRIVATE_EQUITY, sector: 'Aerospace', description: 'Launch services and Starlink. Held across six SPV vintages from Series J onward.', valuationM: 340, positions: 10, multiple: 3.4, vehicle: VehicleType.SPV },
-  { name: 'Anthropic', type: AssetType.PRIVATE_EQUITY, sector: 'Artificial Intelligence', description: 'Frontier AI research lab. Entered at Series C, followed on twice.', valuationM: 280, positions: 8, multiple: 4.1, vehicle: VehicleType.SPV },
-  { name: 'OpenAI', type: AssetType.PRIVATE_EQUITY, sector: 'Artificial Intelligence', description: 'Secondary purchases of employee tender shares.', valuationM: 225, positions: 8, multiple: 3.8, vehicle: VehicleType.SPV },
-  { name: 'Stripe', type: AssetType.PRIVATE_EQUITY, sector: 'Fintech', description: 'Payments infrastructure. Long-held secondary position.', valuationM: 150, positions: 7, multiple: 2.2, vehicle: VehicleType.SPV },
-  { name: 'Databricks', type: AssetType.PRIVATE_EQUITY, sector: 'Data Infrastructure', description: 'Lakehouse platform. Series H and I.', valuationM: 135, positions: 6, multiple: 2.6, vehicle: VehicleType.SPV },
-  { name: 'Anduril Industries', type: AssetType.PRIVATE_EQUITY, sector: 'Defence Technology', description: 'Autonomous defence systems.', valuationM: 110, positions: 6, multiple: 3.1, vehicle: VehicleType.SPV },
-  { name: 'xAI', type: AssetType.PRIVATE_EQUITY, sector: 'Artificial Intelligence', description: 'Series B participation via a co-investment SPV.', valuationM: 95, positions: 4, multiple: 1.9, vehicle: VehicleType.SPV },
-  { name: 'Figma', type: AssetType.PRIVATE_EQUITY, sector: 'Design Software', description: 'Held through the failed-acquisition period; marked back up post-IPO filing.', valuationM: 65, positions: 4, multiple: 2.4, vehicle: VehicleType.SPV },
-  { name: 'Revolut', type: AssetType.PRIVATE_EQUITY, sector: 'Fintech', description: 'Neobank. Secondary at the 2024 employee tender.', valuationM: 62, positions: 4, multiple: 2.8, vehicle: VehicleType.SPV },
-  { name: 'Canva', type: AssetType.PRIVATE_EQUITY, sector: 'Design Software', description: 'Secondary position acquired from an early employee pool.', valuationM: 58, positions: 4, multiple: 2.1, vehicle: VehicleType.SPV },
-  { name: 'Rippling', type: AssetType.PRIVATE_EQUITY, sector: 'HR Software', description: 'Series E and F.', valuationM: 52, positions: 4, multiple: 2.3, vehicle: VehicleType.SPV },
-  { name: 'Neuralink', type: AssetType.PRIVATE_EQUITY, sector: 'Medical Devices', description: 'Brain-computer interfaces. High variance, small cheque.', valuationM: 48, positions: 3, multiple: 3.6, vehicle: VehicleType.SPV },
-  { name: 'Ramp', type: AssetType.PRIVATE_EQUITY, sector: 'Fintech', description: 'Corporate spend management.', valuationM: 45, positions: 4, multiple: 2.7, vehicle: VehicleType.SPV },
-  { name: 'Scale AI', type: AssetType.PRIVATE_EQUITY, sector: 'Artificial Intelligence', description: 'Data labelling and model evaluation.', valuationM: 44, positions: 3, multiple: 2.0, vehicle: VehicleType.SPV },
-  { name: 'Groq', type: AssetType.PRIVATE_EQUITY, sector: 'Semiconductors', description: 'Inference accelerators.', valuationM: 42, positions: 3, multiple: 2.5, vehicle: VehicleType.SPV },
-  { name: 'Deel', type: AssetType.PRIVATE_EQUITY, sector: 'HR Software', description: 'Global payroll and compliance.', valuationM: 40, positions: 3, multiple: 1.8, vehicle: VehicleType.SPV },
-  { name: 'Epic Games', type: AssetType.PRIVATE_EQUITY, sector: 'Gaming', description: 'Unreal Engine and Fortnite. Marked down from the 2022 peak.', valuationM: 38, positions: 3, multiple: 0.9, vehicle: VehicleType.SPV },
-  { name: 'Perplexity AI', type: AssetType.PRIVATE_EQUITY, sector: 'Artificial Intelligence', description: 'Answer engine. Two rapid follow-ons.', valuationM: 35, positions: 4, multiple: 4.6, vehicle: VehicleType.SPV },
-  { name: 'Klarna', type: AssetType.PRIVATE_EQUITY, sector: 'Fintech', description: 'Buy-now-pay-later. Recovered from the 2022 down round.', valuationM: 32, positions: 3, multiple: 1.1, vehicle: VehicleType.SPV },
-  { name: 'Anysphere (Cursor)', type: AssetType.PRIVATE_EQUITY, sector: 'Developer Tools', description: 'AI-native code editor.', valuationM: 30, positions: 3, multiple: 5.2, vehicle: VehicleType.SPV },
-  { name: 'Chime', type: AssetType.PRIVATE_EQUITY, sector: 'Fintech', description: 'Consumer banking.', valuationM: 28, positions: 3, multiple: 1.4, vehicle: VehicleType.SPV },
-  { name: 'Plaid', type: AssetType.PRIVATE_EQUITY, sector: 'Fintech', description: 'Bank data connectivity.', valuationM: 26, positions: 3, multiple: 1.2, vehicle: VehicleType.SPV },
-  { name: 'Monzo', type: AssetType.PRIVATE_EQUITY, sector: 'Fintech', description: 'UK challenger bank. GBP-denominated entry, USD book.', valuationM: 24, positions: 3, multiple: 1.7, vehicle: VehicleType.SPV },
-  { name: 'Sierra AI', type: AssetType.PRIVATE_EQUITY, sector: 'Artificial Intelligence', description: 'Enterprise agent platform. Newest position in the book.', valuationM: 22, positions: 3, multiple: 1.6, vehicle: VehicleType.SPV },
+  { name: 'SpaceX', type: AssetType.PRIVATE_EQUITY, sector: 'Aerospace', description: 'Launch services and Starlink. Held across six SPV vintages from Series J onward.', valuationM: 340, positions: 10, multiple: 3.4, vehicle: VehicleType.SPV, logoDomain: 'spacex.com' },
+  { name: 'Anthropic', type: AssetType.PRIVATE_EQUITY, sector: 'Artificial Intelligence', description: 'Frontier AI research lab. Entered at Series C, followed on twice.', valuationM: 280, positions: 8, multiple: 4.1, vehicle: VehicleType.SPV, logoDomain: 'anthropic.com' },
+  { name: 'OpenAI', type: AssetType.PRIVATE_EQUITY, sector: 'Artificial Intelligence', description: 'Secondary purchases of employee tender shares.', valuationM: 225, positions: 8, multiple: 3.8, vehicle: VehicleType.SPV, logoDomain: 'openai.com' },
+  { name: 'Stripe', type: AssetType.PRIVATE_EQUITY, sector: 'Fintech', description: 'Payments infrastructure. Long-held secondary position.', valuationM: 150, positions: 7, multiple: 2.2, vehicle: VehicleType.SPV, logoDomain: 'stripe.com' },
+  { name: 'Databricks', type: AssetType.PRIVATE_EQUITY, sector: 'Data Infrastructure', description: 'Lakehouse platform. Series H and I.', valuationM: 135, positions: 6, multiple: 2.6, vehicle: VehicleType.SPV, logoDomain: 'databricks.com' },
+  { name: 'Anduril Industries', type: AssetType.PRIVATE_EQUITY, sector: 'Defence Technology', description: 'Autonomous defence systems.', valuationM: 110, positions: 6, multiple: 3.1, vehicle: VehicleType.SPV, logoDomain: 'anduril.com' },
+  { name: 'xAI', type: AssetType.PRIVATE_EQUITY, sector: 'Artificial Intelligence', description: 'Series B participation via a co-investment SPV.', valuationM: 95, positions: 4, multiple: 1.9, vehicle: VehicleType.SPV, logoDomain: 'x.ai' },
+  { name: 'Figma', type: AssetType.PRIVATE_EQUITY, sector: 'Design Software', description: 'Held through the failed-acquisition period; marked back up post-IPO filing.', valuationM: 65, positions: 4, multiple: 2.4, vehicle: VehicleType.SPV, logoDomain: 'figma.com' },
+  { name: 'Revolut', type: AssetType.PRIVATE_EQUITY, sector: 'Fintech', description: 'Neobank. Secondary at the 2024 employee tender.', valuationM: 62, positions: 4, multiple: 2.8, vehicle: VehicleType.SPV, logoDomain: 'revolut.com' },
+  { name: 'Canva', type: AssetType.PRIVATE_EQUITY, sector: 'Design Software', description: 'Secondary position acquired from an early employee pool.', valuationM: 58, positions: 4, multiple: 2.1, vehicle: VehicleType.SPV, logoDomain: 'canva.com' },
+  { name: 'Rippling', type: AssetType.PRIVATE_EQUITY, sector: 'HR Software', description: 'Series E and F.', valuationM: 52, positions: 4, multiple: 2.3, vehicle: VehicleType.SPV, logoDomain: 'rippling.com' },
+  { name: 'Neuralink', type: AssetType.PRIVATE_EQUITY, sector: 'Medical Devices', description: 'Brain-computer interfaces. High variance, small cheque.', valuationM: 48, positions: 3, multiple: 3.6, vehicle: VehicleType.SPV, logoDomain: 'neuralink.com' },
+  { name: 'Ramp', type: AssetType.PRIVATE_EQUITY, sector: 'Fintech', description: 'Corporate spend management.', valuationM: 45, positions: 4, multiple: 2.7, vehicle: VehicleType.SPV, logoDomain: 'ramp.com' },
+  { name: 'Scale AI', type: AssetType.PRIVATE_EQUITY, sector: 'Artificial Intelligence', description: 'Data labelling and model evaluation.', valuationM: 44, positions: 3, multiple: 2.0, vehicle: VehicleType.SPV, logoDomain: 'scale.com' },
+  { name: 'Groq', type: AssetType.PRIVATE_EQUITY, sector: 'Semiconductors', description: 'Inference accelerators.', valuationM: 42, positions: 3, multiple: 2.5, vehicle: VehicleType.SPV, logoDomain: 'groq.com' },
+  { name: 'Deel', type: AssetType.PRIVATE_EQUITY, sector: 'HR Software', description: 'Global payroll and compliance.', valuationM: 40, positions: 3, multiple: 1.8, vehicle: VehicleType.SPV, logoDomain: 'deel.com' },
+  { name: 'Epic Games', type: AssetType.PRIVATE_EQUITY, sector: 'Gaming', description: 'Unreal Engine and Fortnite. Marked down from the 2022 peak.', valuationM: 38, positions: 3, multiple: 0.9, vehicle: VehicleType.SPV, logoDomain: 'epicgames.com' },
+  { name: 'Perplexity AI', type: AssetType.PRIVATE_EQUITY, sector: 'Artificial Intelligence', description: 'Answer engine. Two rapid follow-ons.', valuationM: 35, positions: 4, multiple: 4.6, vehicle: VehicleType.SPV, logoDomain: 'perplexity.ai' },
+  { name: 'Klarna', type: AssetType.PRIVATE_EQUITY, sector: 'Fintech', description: 'Buy-now-pay-later. Recovered from the 2022 down round.', valuationM: 32, positions: 3, multiple: 1.1, vehicle: VehicleType.SPV, logoDomain: 'klarna.com' },
+  { name: 'Anysphere (Cursor)', type: AssetType.PRIVATE_EQUITY, sector: 'Developer Tools', description: 'AI-native code editor.', valuationM: 30, positions: 3, multiple: 5.2, vehicle: VehicleType.SPV, logoDomain: 'cursor.com' },
+  { name: 'Chime', type: AssetType.PRIVATE_EQUITY, sector: 'Fintech', description: 'Consumer banking.', valuationM: 28, positions: 3, multiple: 1.4, vehicle: VehicleType.SPV, logoDomain: 'chime.com' },
+  { name: 'Plaid', type: AssetType.PRIVATE_EQUITY, sector: 'Fintech', description: 'Bank data connectivity.', valuationM: 26, positions: 3, multiple: 1.2, vehicle: VehicleType.SPV, logoDomain: 'plaid.com' },
+  { name: 'Monzo', type: AssetType.PRIVATE_EQUITY, sector: 'Fintech', description: 'UK challenger bank. GBP-denominated entry, USD book.', valuationM: 24, positions: 3, multiple: 1.7, vehicle: VehicleType.SPV, logoDomain: 'monzo.com' },
+  { name: 'Sierra AI', type: AssetType.PRIVATE_EQUITY, sector: 'Artificial Intelligence', description: 'Enterprise agent platform. Newest position in the book.', valuationM: 22, positions: 3, multiple: 1.6, vehicle: VehicleType.SPV, logoDomain: 'sierra.ai' },
 
   // ---- crypto: the $1B digital-asset treasury
-  { name: 'Bitcoin', type: AssetType.CRYPTO, ticker: 'BTC', sector: 'Digital Assets', description: 'Core treasury reserve, custodied with Coinbase Prime and Fireblocks.', valuationM: 420, positions: 11, multiple: 3.9, vehicle: VehicleType.DIRECT },
-  { name: 'Ethereum', type: AssetType.CRYPTO, ticker: 'ETH', sector: 'Digital Assets', description: 'Treasury holding, majority staked through institutional validators.', valuationM: 300, positions: 10, multiple: 3.2, vehicle: VehicleType.DIRECT },
-  { name: 'Solana', type: AssetType.CRYPTO, ticker: 'SOL', sector: 'Digital Assets', description: 'Accumulated through the 2023 drawdown; staked.', valuationM: 185, positions: 8, multiple: 5.8, vehicle: VehicleType.DIRECT },
-  { name: 'Chainlink', type: AssetType.CRYPTO, ticker: 'LINK', sector: 'Digital Assets', description: 'Oracle network. Locked in the staking pool.', valuationM: 45, positions: 4, multiple: 1.9, vehicle: VehicleType.DIRECT },
-  { name: 'Avalanche', type: AssetType.CRYPTO, ticker: 'AVAX', sector: 'Digital Assets', description: 'Subnet thesis. Marked down from entry.', valuationM: 35, positions: 4, multiple: 0.7, vehicle: VehicleType.DIRECT },
-  { name: 'Sui', type: AssetType.CRYPTO, ticker: 'SUI', sector: 'Digital Assets', description: 'Node-operator allocation plus secondary purchases.', valuationM: 28, positions: 3, multiple: 2.4, vehicle: VehicleType.DIRECT },
-  { name: 'Aptos', type: AssetType.CRYPTO, ticker: 'APT', sector: 'Digital Assets', description: 'Locked allocation from the 2022 launch round.', valuationM: 25, positions: 3, multiple: 0.8, vehicle: VehicleType.DIRECT },
-  { name: 'Arbitrum', type: AssetType.CRYPTO, ticker: 'ARB', sector: 'Digital Assets', description: 'L2 exposure, partially in the DAO treasury programme.', valuationM: 22, positions: 3, multiple: 1.1, vehicle: VehicleType.DIRECT },
-  { name: 'Uniswap', type: AssetType.CRYPTO, ticker: 'UNI', sector: 'Digital Assets', description: 'Governance position in the DEX protocol.', valuationM: 20, positions: 3, multiple: 1.3, vehicle: VehicleType.DIRECT },
-  { name: 'Celestia', type: AssetType.CRYPTO, ticker: 'TIA', sector: 'Digital Assets', description: 'Modular data-availability layer. Vesting through 2026.', valuationM: 18, positions: 2, multiple: 0.6, vehicle: VehicleType.DIRECT },
-  { name: 'Render Network', type: AssetType.CRYPTO, ticker: 'RENDER', sector: 'Digital Assets', description: 'Distributed GPU rendering.', valuationM: 15, positions: 2, multiple: 2.2, vehicle: VehicleType.DIRECT },
-  { name: 'Helium', type: AssetType.CRYPTO, ticker: 'HNT', sector: 'Digital Assets', description: 'Decentralised wireless. Written down substantially.', valuationM: 8, positions: 2, multiple: 0.4, vehicle: VehicleType.DIRECT },
+  { name: 'Bitcoin', type: AssetType.CRYPTO, ticker: 'BTC', sector: 'Digital Assets', description: 'Core treasury reserve, custodied with Coinbase Prime and Fireblocks.', valuationM: 420, positions: 11, multiple: 3.9, vehicle: VehicleType.DIRECT, logoDomain: 'bitcoin.org' },
+  { name: 'Ethereum', type: AssetType.CRYPTO, ticker: 'ETH', sector: 'Digital Assets', description: 'Treasury holding, majority staked through institutional validators.', valuationM: 300, positions: 10, multiple: 3.2, vehicle: VehicleType.DIRECT, logoDomain: 'ethereum.org' },
+  { name: 'Solana', type: AssetType.CRYPTO, ticker: 'SOL', sector: 'Digital Assets', description: 'Accumulated through the 2023 drawdown; staked.', valuationM: 185, positions: 8, multiple: 5.8, vehicle: VehicleType.DIRECT, logoDomain: 'solana.com' },
+  { name: 'Chainlink', type: AssetType.CRYPTO, ticker: 'LINK', sector: 'Digital Assets', description: 'Oracle network. Locked in the staking pool.', valuationM: 45, positions: 4, multiple: 1.9, vehicle: VehicleType.DIRECT, logoDomain: 'chain.link' },
+  { name: 'Avalanche', type: AssetType.CRYPTO, ticker: 'AVAX', sector: 'Digital Assets', description: 'Subnet thesis. Marked down from entry.', valuationM: 35, positions: 4, multiple: 0.7, vehicle: VehicleType.DIRECT, logoDomain: 'avax.network' },
+  { name: 'Sui', type: AssetType.CRYPTO, ticker: 'SUI', sector: 'Digital Assets', description: 'Node-operator allocation plus secondary purchases.', valuationM: 28, positions: 3, multiple: 2.4, vehicle: VehicleType.DIRECT, logoDomain: 'sui.io' },
+  { name: 'Aptos', type: AssetType.CRYPTO, ticker: 'APT', sector: 'Digital Assets', description: 'Locked allocation from the 2022 launch round.', valuationM: 25, positions: 3, multiple: 0.8, vehicle: VehicleType.DIRECT, logoDomain: 'aptoslabs.com' },
+  { name: 'Arbitrum', type: AssetType.CRYPTO, ticker: 'ARB', sector: 'Digital Assets', description: 'L2 exposure, partially in the DAO treasury programme.', valuationM: 22, positions: 3, multiple: 1.1, vehicle: VehicleType.DIRECT, logoDomain: 'arbitrum.io' },
+  { name: 'Uniswap', type: AssetType.CRYPTO, ticker: 'UNI', sector: 'Digital Assets', description: 'Governance position in the DEX protocol.', valuationM: 20, positions: 3, multiple: 1.3, vehicle: VehicleType.DIRECT, logoDomain: 'uniswap.org' },
+  { name: 'Celestia', type: AssetType.CRYPTO, ticker: 'TIA', sector: 'Digital Assets', description: 'Modular data-availability layer. Vesting through 2026.', valuationM: 18, positions: 2, multiple: 0.6, vehicle: VehicleType.DIRECT, logoDomain: 'celestia.org' },
+  { name: 'Render Network', type: AssetType.CRYPTO, ticker: 'RENDER', sector: 'Digital Assets', description: 'Distributed GPU rendering.', valuationM: 15, positions: 2, multiple: 2.2, vehicle: VehicleType.DIRECT, logoDomain: 'rendernetwork.com' },
+  { name: 'Helium', type: AssetType.CRYPTO, ticker: 'HNT', sector: 'Digital Assets', description: 'Decentralised wireless. Written down substantially.', valuationM: 8, positions: 2, multiple: 0.4, vehicle: VehicleType.DIRECT, logoDomain: 'helium.com' },
 
   // ---- tokenized / pre-IPO share trading run through Allocations
-  { name: 'SpaceX Series N (tokenized)', type: AssetType.TOKENIZED, sector: 'Aerospace', description: 'Tokenized pre-IPO share class traded through the Allocations platform.', valuationM: 55, positions: 4, multiple: 2.3, vehicle: VehicleType.SPV },
-  { name: 'OpenAI tokenized SPV', type: AssetType.TOKENIZED, sector: 'Artificial Intelligence', description: 'Tokenized feeder into a third-party OpenAI SPV.', valuationM: 40, positions: 3, multiple: 2.9, vehicle: VehicleType.SPV },
-  { name: 'Stripe tokenized units', type: AssetType.TOKENIZED, sector: 'Fintech', description: 'Fractionalised secondary units.', valuationM: 25, positions: 3, multiple: 1.8, vehicle: VehicleType.SPV },
+  { name: 'SpaceX Series N (tokenized)', type: AssetType.TOKENIZED, sector: 'Aerospace', description: 'Tokenized pre-IPO share class traded through the Allocations platform.', valuationM: 55, positions: 4, multiple: 2.3, vehicle: VehicleType.SPV, logoDomain: 'spacex.com' },
+  { name: 'OpenAI tokenized SPV', type: AssetType.TOKENIZED, sector: 'Artificial Intelligence', description: 'Tokenized feeder into a third-party OpenAI SPV.', valuationM: 40, positions: 3, multiple: 2.9, vehicle: VehicleType.SPV, logoDomain: 'openai.com' },
+  { name: 'Stripe tokenized units', type: AssetType.TOKENIZED, sector: 'Fintech', description: 'Fractionalised secondary units.', valuationM: 25, positions: 3, multiple: 1.8, vehicle: VehicleType.SPV, logoDomain: 'stripe.com' },
 
   // ---- fund commitments
-  { name: 'Sequoia Capital Growth Fund IV', type: AssetType.FUND, sector: 'Venture Capital', description: '10-year growth fund, 2021 vintage. Capital called on a quarterly schedule.', valuationM: 85, positions: 3, multiple: 1.7, vehicle: VehicleType.FUND },
-  { name: 'Tiger Global PIP 15', type: AssetType.FUND, sector: 'Growth Equity', description: '2021 vintage. Marked down heavily in 2022, recovering.', valuationM: 60, positions: 3, multiple: 0.95, vehicle: VehicleType.FUND },
-  { name: 'Founders Fund Growth VIII', type: AssetType.FUND, sector: 'Venture Capital', description: '2023 vintage, roughly half called.', valuationM: 55, positions: 3, multiple: 1.5, vehicle: VehicleType.FUND },
-  { name: 'a16z Growth Fund III', type: AssetType.FUND, sector: 'Venture Capital', description: '2022 vintage.', valuationM: 50, positions: 3, multiple: 1.35, vehicle: VehicleType.FUND },
-  { name: 'Insight Partners XII', type: AssetType.FUND, sector: 'Growth Equity', description: '2020 vintage, now returning capital.', valuationM: 45, positions: 3, multiple: 1.6, vehicle: VehicleType.FUND },
-  { name: 'Pantera Blockchain Fund', type: AssetType.FUND, sector: 'Digital Assets', description: 'Liquid-token and venture blend.', valuationM: 38, positions: 3, multiple: 2.1, vehicle: VehicleType.FUND },
+  { name: 'Sequoia Capital Growth Fund IV', type: AssetType.FUND, sector: 'Venture Capital', description: '10-year growth fund, 2021 vintage. Capital called on a quarterly schedule.', valuationM: 85, positions: 3, multiple: 1.7, vehicle: VehicleType.FUND, logoDomain: 'sequoiacap.com' },
+  { name: 'Tiger Global PIP 15', type: AssetType.FUND, sector: 'Growth Equity', description: '2021 vintage. Marked down heavily in 2022, recovering.', valuationM: 60, positions: 3, multiple: 0.95, vehicle: VehicleType.FUND, logoDomain: 'tigerglobal.com' },
+  { name: 'Founders Fund Growth VIII', type: AssetType.FUND, sector: 'Venture Capital', description: '2023 vintage, roughly half called.', valuationM: 55, positions: 3, multiple: 1.5, vehicle: VehicleType.FUND, logoDomain: 'foundersfund.com' },
+  { name: 'a16z Growth Fund III', type: AssetType.FUND, sector: 'Venture Capital', description: '2022 vintage.', valuationM: 50, positions: 3, multiple: 1.35, vehicle: VehicleType.FUND, logoDomain: 'a16z.com' },
+  { name: 'Insight Partners XII', type: AssetType.FUND, sector: 'Growth Equity', description: '2020 vintage, now returning capital.', valuationM: 45, positions: 3, multiple: 1.6, vehicle: VehicleType.FUND, logoDomain: 'insightpartners.com' },
+  { name: 'Pantera Blockchain Fund', type: AssetType.FUND, sector: 'Digital Assets', description: 'Liquid-token and venture blend.', valuationM: 38, positions: 3, multiple: 2.1, vehicle: VehicleType.FUND, logoDomain: 'panteracapital.com' },
 
   // ---- listed positions
-  { name: 'Coinbase Global', type: AssetType.PUBLIC_EQUITY, ticker: 'COIN', sector: 'Digital Assets', description: 'Listed proxy for digital-asset volumes; held since the direct listing.', valuationM: 65, positions: 4, multiple: 2.6, vehicle: VehicleType.DIRECT },
-  { name: 'NVIDIA', type: AssetType.PUBLIC_EQUITY, ticker: 'NVDA', sector: 'Semiconductors', description: 'Listed AI infrastructure exposure.', valuationM: 55, positions: 3, multiple: 4.8, vehicle: VehicleType.DIRECT },
-  { name: 'MicroStrategy', type: AssetType.PUBLIC_EQUITY, ticker: 'MSTR', sector: 'Digital Assets', description: 'Levered bitcoin proxy.', valuationM: 40, positions: 3, multiple: 3.3, vehicle: VehicleType.DIRECT },
-  { name: 'Palantir Technologies', type: AssetType.PUBLIC_EQUITY, ticker: 'PLTR', sector: 'Enterprise Software', description: 'Listed since the 2020 direct listing.', valuationM: 30, positions: 3, multiple: 3.9, vehicle: VehicleType.DIRECT },
+  { name: 'Coinbase Global', type: AssetType.PUBLIC_EQUITY, ticker: 'COIN', sector: 'Digital Assets', description: 'Listed proxy for digital-asset volumes; held since the direct listing.', valuationM: 65, positions: 4, multiple: 2.6, vehicle: VehicleType.DIRECT, logoDomain: 'coinbase.com' },
+  { name: 'NVIDIA', type: AssetType.PUBLIC_EQUITY, ticker: 'NVDA', sector: 'Semiconductors', description: 'Listed AI infrastructure exposure.', valuationM: 55, positions: 3, multiple: 4.8, vehicle: VehicleType.DIRECT, logoDomain: 'nvidia.com' },
+  { name: 'MicroStrategy', type: AssetType.PUBLIC_EQUITY, ticker: 'MSTR', sector: 'Digital Assets', description: 'Levered bitcoin proxy.', valuationM: 40, positions: 3, multiple: 3.3, vehicle: VehicleType.DIRECT, logoDomain: 'strategy.com' },
+  { name: 'Palantir Technologies', type: AssetType.PUBLIC_EQUITY, ticker: 'PLTR', sector: 'Enterprise Software', description: 'Listed since the 2020 direct listing.', valuationM: 30, positions: 3, multiple: 3.9, vehicle: VehicleType.DIRECT, logoDomain: 'palantir.com' },
 
-  // ---- real estate and private credit
+  // ---- real estate and private credit — no public brand mark, so no logoDomain
   { name: 'Dubai Marina Tower — Floors 40-48', type: AssetType.REAL_ESTATE, sector: 'Commercial Real Estate', description: 'Office and residential floors held through a DIFC holding company.', valuationM: 80, positions: 3, multiple: 1.45, vehicle: VehicleType.DIRECT },
   { name: 'Mayfair Residential Portfolio', type: AssetType.REAL_ESTATE, sector: 'Residential Real Estate', description: 'Four London freeholds held through a Jersey structure.', valuationM: 65, positions: 3, multiple: 1.2, vehicle: VehicleType.DIRECT },
   { name: 'Orchard Road Retail Unit', type: AssetType.REAL_ESTATE, sector: 'Retail Real Estate', description: 'Singapore retail frontage, long lease in place.', valuationM: 40, positions: 2, multiple: 1.3, vehicle: VehicleType.DIRECT },
@@ -299,6 +304,9 @@ async function main(): Promise<void> {
       sector: spec.sector,
       currency: 'USD',
       description: spec.description,
+      logoUrl: spec.logoDomain
+        ? `https://www.google.com/s2/favicons?domain=${spec.logoDomain}&sz=128`
+        : null,
     },
   }));
 
@@ -814,11 +822,16 @@ async function report(): Promise<void> {
   console.log('Sign in with any email — the OTP is returned in the response.\n');
 }
 
-main()
-  .catch((error) => {
-    console.error(error);
-    process.exit(1);
-  })
-  .finally(() => {
-    void prisma.$disconnect();
-  });
+// Guarded so that importing `ASSETS` (or anything else) from this module —
+// e.g. a one-off script reusing the seed data — never re-triggers the wipe
+// below as a side effect of the import itself.
+if (require.main === module) {
+  main()
+    .catch((error) => {
+      console.error(error);
+      process.exit(1);
+    })
+    .finally(() => {
+      void prisma.$disconnect();
+    });
+}

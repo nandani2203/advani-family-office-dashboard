@@ -60,9 +60,18 @@ export class AssetsController {
   }
 
   @Roles(Role.ADMIN)
-  @Audit('delete', 'asset')
+  @Audit('archive', 'asset')
   @Delete(':id')
+  @ApiOperation({ summary: 'Archive (soft delete) an asset. History against it is preserved. ADMIN only.' })
   remove(@Param('id', ParseUUIDPipe) id: string): Promise<{ id: string }> {
     return this.assetsService.remove(id);
+  }
+
+  @Roles(Role.ADMIN)
+  @Audit('restore', 'asset')
+  @Patch(':id/restore')
+  @ApiOperation({ summary: 'Restore an archived asset. ADMIN only.' })
+  restore(@Param('id', ParseUUIDPipe) id: string): Promise<Asset> {
+    return this.assetsService.restore(id);
   }
 }

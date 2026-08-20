@@ -101,7 +101,7 @@ export function ValuationCalculator({ positions }: { positions: Investment[] }):
                 <SelectContent>
                   {positions.map((position) => (
                     <SelectItem key={position.id} value={position.id}>
-                      {position.asset.name} — {position.vehicleName}
+                      {position.vehicleName}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog, RowActionButtons } from '@/components/confirm-dialog';
 import { Column, DataTable } from '@/components/data-table';
+import { ExportButton } from '@/components/export-button';
 import {
   DateRangeFilter,
   FilterBar,
@@ -223,6 +224,21 @@ export default function DistributionsPage(): JSX.Element {
         title="Distributions"
         description="LP payouts through the declared → approved → paid workflow. Net is always gross less withholding tax."
       >
+        <ExportButton<Distribution>
+          path="/distributions"
+          filters={list.effectiveFilters}
+          filename="distributions.csv"
+          headers={['Declared', 'Position', 'Status', 'Gross', 'Withholding', 'Net', 'Paid']}
+          toRow={(distribution) => [
+            formatDate(distribution.declaredDate),
+            distribution.investment.vehicleName,
+            DISTRIBUTION_STATUS_LABELS[distribution.status],
+            distribution.grossAmount,
+            distribution.withholdingTax,
+            distribution.netAmount,
+            distribution.paymentDate ? formatDate(distribution.paymentDate) : '',
+          ]}
+        />
         {canEdit ? (
           <Button
             size="sm"

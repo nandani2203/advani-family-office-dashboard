@@ -4,6 +4,7 @@ import { AlarmClock, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { ConfirmDialog, RowActionButtons } from '@/components/confirm-dialog';
 import { Column, DataTable } from '@/components/data-table';
+import { ExportButton } from '@/components/export-button';
 import {
   FilterBar,
   FilterSelect,
@@ -206,6 +207,21 @@ export default function FilingsPage(): JSX.Element {
         title="Filings"
         description="KYC refreshes, VAT returns, annual returns and tax work, soonest deadline first. This is the list that gets missed."
       >
+        <ExportButton<Filing>
+          path="/filings"
+          filters={list.effectiveFilters}
+          filename="filings.csv"
+          headers={['Filing', 'Type', 'Jurisdiction', 'Status', 'Due', 'Submitted', 'Assignee']}
+          toRow={(filing) => [
+            filing.vehicleName,
+            FILING_TYPE_LABELS[filing.type],
+            filing.jurisdiction ?? '',
+            FILING_STATUS_LABELS[filing.status],
+            formatDate(filing.dueDate),
+            filing.submittedAt ? formatDate(filing.submittedAt) : '',
+            filing.assignee?.name ?? filing.assignee?.email ?? '',
+          ]}
+        />
         {canEdit ? (
           <Button size="sm" onClick={openCreate}>
             <Plus className="h-4 w-4" />
