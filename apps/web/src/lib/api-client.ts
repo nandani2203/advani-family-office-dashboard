@@ -5,10 +5,6 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api')
   '',
 );
 
-/** Storage keys match the reference solution, so tokens survive a rename. */
-const ACCESS_KEY = 'admin.accessToken';
-const REFRESH_KEY = 'admin.refreshToken';
-
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -28,18 +24,27 @@ export class ApiError extends Error {
 
 // -------------------------------------------------------------------- storage
 
+/**
+ * In-memory only, deliberately not localStorage/sessionStorage — a family
+ * office dashboard should ask for the OTP again on every fresh visit rather
+ * than staying signed in for days. This still survives client-side route
+ * changes (same JS execution context), so navigating between pages or a
+ * silent access-token refresh mid-session doesn't bounce the user out; only
+ * a hard reload, a new tab, or closing the browser does, which is the point.
+ */
+let accessToken: string | null = null;
+let refreshToken: string | null = null;
+
 export const tokens = {
-  access: (): string | null =>
-    typeof window === 'undefined' ? null : window.localStorage.getItem(ACCESS_KEY),
-  refresh: (): string | null =>
-    typeof window === 'undefined' ? null : window.localStorage.getItem(REFRESH_KEY),
+  access: (): string | null => accessToken,
+  refresh: (): string | null => refreshToken,
   save: (session: Pick<Session, 'accessToken' | 'refreshToken'>): void => {
-    window.localStorage.setItem(ACCESS_KEY, session.accessToken);
-    window.localStorage.setItem(REFRESH_KEY, session.refreshToken);
+    accessToken = session.accessToken;
+    refreshToken = session.refreshToken;
   },
   clear: (): void => {
-    window.localStorage.removeItem(ACCESS_KEY);
-    window.localStorage.removeItem(REFRESH_KEY);
+    accessToken = null;
+    refreshToken = null;
   },
 };
 
