@@ -4,7 +4,7 @@
 // `api/*.ts` with esbuild, which does not emit `emitDecoratorMetadata` — that
 // would break Nest's dependency injection. Instead we let `nest build` (real
 // tsc) produce `dist/`, and require the compiled output from here.
-const { bootstrapServer } = require('../dist/serverless');
+const { bootstrapServer } = require('../dist/src/serverless');
 
 let cachedHandler;
 
