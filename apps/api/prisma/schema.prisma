@@ -1,0 +1,332 @@
+// Advani Family Office — internal dashboard schema
+//
+// DATABASE_URL points at the Supabase connection pooler (port 6543) so that
+// serverless functions do not exhaust Postgres connections. DIRECT_URL points
+// at the direct connection (port 5432) and is used only by `prisma migrate`.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------- auth & users
+
+enum Role {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+model User {
+  id          String     @id @default(uuid()) @db.Uuid
+  email       String     @unique
+  name        String?
+  role        Role       @default(VIEWER)
+  status      UserStatus @default(ACTIVE)
+  lastLoginAt DateTime?  @map("last_login_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  refreshTokens   RefreshToken[]
+  assignedFilings Filing[]       @relation("FilingAssignee")
+  auditLogs       AuditLog[]
+  permissions     UserPermission[]
+
+  @@index([role])
+  @@map("users")
+}
+
+enum PermissionResource {
+  INVESTMENTS
+  ASSETS
+  TRANSACTIONS
+  DISTRIBUTIONS
+  FILINGS
+}
+
+enum PermissionLevel {
+  READ
+  WRITE
+  FULL
+}
+
+/// A narrower, per-resource override on top of a user's base role — e.g. a
+/// VIEWER granted WRITE on just Transactions, without promoting them to
+/// EDITOR everywhere. Users/administration is never grantable this way; it
+/// stays gated on Role.ADMIN alone.
+model UserPermission {
+  id        String             @id @default(uuid()) @db.Uuid
+  userId    String             @map("user_id") @db.Uuid
+  resource  PermissionResource
+  level     PermissionLevel
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, resource])
+  @@index([userId])
+  @@map("user_permissions")
+}
+
+/// One-time sign-in codes. Only the hash is stored; codes are single-use and
+/// expire after OTP_TTL_MINUTES.
+model OtpCode {
+  id         String    @id @default(uuid()) @db.Uuid
+  email      String
+  codeHash   String    @map("code_hash")
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([email, expiresAt])
+  @@map("otp_codes")
+}
+
+/// Rotating refresh tokens. Storing the hash lets us detect reuse of a token
+/// that has already been rotated, which means it leaked.
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ------------------------------------------------------------------- portfolio
+
+enum AssetType {
+  PRIVATE_EQUITY
+  PUBLIC_EQUITY
+  CRYPTO
+  FUND
+  DEBT
+  REAL_ESTATE
+  TOKENIZED
+}
+
+enum VehicleType {
+  SPV
+  FUND
+  DIRECT
+}
+
+enum InvestmentStatus {
+  ACTIVE
+  EXITED
+  WRITTEN_OFF
+}
+
+/// The underlying thing we own — a company, a token, a fund.
+model Asset {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String
+  type        AssetType
+  ticker      String?
+  sector      String?
+  currency    String    @default("USD")
+  description String?
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  investments Investment[]
+
+  @@index([type])
+  @@index([name])
+  @@map("assets")
+}
+
+/// A position in an asset, held through a vehicle (SPV / fund / direct).
+model Investment {
+  id               String           @id @default(uuid()) @db.Uuid
+  assetId          String           @map("asset_id") @db.Uuid
+  vehicle          VehicleType      @default(SPV)
+  vehicleName      String           @map("vehicle_name")
+  committedAmount  Decimal          @default(0) @map("committed_amount") @db.Decimal(20, 2)
+  investedAmount   Decimal          @default(0) @map("invested_amount") @db.Decimal(20, 2)
+  costBasis        Decimal          @default(0) @map("cost_basis") @db.Decimal(20, 2)
+  currentValuation Decimal          @default(0) @map("current_valuation") @db.Decimal(20, 2)
+  ownershipPct     Decimal?         @map("ownership_pct") @db.Decimal(9, 4)
+  status           InvestmentStatus @default(ACTIVE)
+  investedAt       DateTime         @map("invested_at")
+  notes            String?
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  asset         Asset          @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  valuations    Valuation[]
+  transactions  Transaction[]
+  distributions Distribution[]
+
+  @@index([assetId])
+  @@index([status])
+  @@index([investedAt])
+  @@map("investments")
+}
+
+/// Point-in-time valuation history. Manually entered — there is no market feed.
+model Valuation {
+  id           String   @id @default(uuid()) @db.Uuid
+  investmentId String   @map("investment_id") @db.Uuid
+  asOf         DateTime @map("as_of")
+  value        Decimal  @db.Decimal(20, 2)
+  source       String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  @@unique([investmentId, asOf])
+  @@index([asOf])
+  @@map("valuations")
+}
+
+// -------------------------------------------------------------------- finances
+
+enum TransactionType {
+  CAPITAL_CALL
+  PURCHASE
+  SALE
+  FEE
+  DIVIDEND
+  INTEREST
+}
+
+enum TransactionDirection {
+  INFLOW
+  OUTFLOW
+}
+
+enum TransactionStatus {
+  PENDING
+  SETTLED
+  VOID
+}
+
+model Transaction {
+  id           String               @id @default(uuid()) @db.Uuid
+  investmentId String               @map("investment_id") @db.Uuid
+  type         TransactionType
+  direction    TransactionDirection
+  amount       Decimal              @db.Decimal(20, 2)
+  currency     String               @default("USD")
+  fxRate       Decimal              @default(1) @map("fx_rate") @db.Decimal(18, 8)
+  occurredAt   DateTime             @map("occurred_at")
+  status       TransactionStatus    @default(SETTLED)
+  reference    String?
+  description  String?
+  createdAt    DateTime             @default(now()) @map("created_at")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  @@index([investmentId])
+  @@index([occurredAt])
+  @@index([status])
+  @@index([type])
+  @@map("transactions")
+}
+
+enum DistributionStatus {
+  DECLARED
+  APPROVED
+  PAID
+}
+
+model Distribution {
+  id             String             @id @default(uuid()) @db.Uuid
+  investmentId   String             @map("investment_id") @db.Uuid
+  declaredDate   DateTime           @map("declared_date")
+  paymentDate    DateTime?          @map("payment_date")
+  grossAmount    Decimal            @map("gross_amount") @db.Decimal(20, 2)
+  withholdingTax Decimal            @default(0) @map("withholding_tax") @db.Decimal(20, 2)
+  netAmount      Decimal            @map("net_amount") @db.Decimal(20, 2)
+  currency       String             @default("USD")
+  status         DistributionStatus @default(DECLARED)
+  notes          String?
+  createdAt      DateTime           @default(now()) @map("created_at")
+  updatedAt      DateTime           @updatedAt @map("updated_at")
+
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  @@index([investmentId])
+  @@index([status])
+  @@index([declaredDate])
+  @@map("distributions")
+}
+
+// ------------------------------------------------------------------ compliance
+
+enum FilingType {
+  KYC
+  VAT
+  MRV
+  ANNUAL_RETURN
+  TAX
+}
+
+enum FilingStatus {
+  OPEN
+  IN_PROGRESS
+  SUBMITTED
+  CLOSED
+}
+
+model Filing {
+  id           String       @id @default(uuid()) @db.Uuid
+  vehicleName  String       @map("vehicle_name")
+  type         FilingType
+  jurisdiction String?
+  dueDate      DateTime     @map("due_date")
+  submittedAt  DateTime?    @map("submitted_at")
+  status       FilingStatus @default(OPEN)
+  assigneeId   String?      @map("assignee_id") @db.Uuid
+  notes        String?
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  assignee User? @relation("FilingAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([dueDate])
+  @@index([assigneeId])
+  @@map("filings")
+}
+
+// ----------------------------------------------------------------------- audit
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  actorEmail String?  @map("actor_email")
+  action     String
+  resource   String
+  resourceId String?  @map("resource_id")
+  before     Json?
+  after      Json?
+  ip         String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([resource, resourceId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

@@ -1,0 +1,27 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+
+.env
+.env.local
+.env.*.local
+!.env.example
+
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+
+/generated/prisma
+
+# Assistant working notes — not part of the shipped project.
+CLAUDE.md
+claude.md
+project.md

@@ -1,0 +1,153 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Tokens, not hex codes, everywhere below the surface of a component. The chart
+ * slots come from a palette that has been validated for colour-vision
+ * deficiency separation; only the first three slots are used on any one chart,
+ * which is the range that clears the all-pairs gate in both light and dark.
+ */
+@layer base {
+  /*
+   * Tokens below are lifted directly from dashboard.allocations.com's compiled
+   * CSS (its own :root/.dark custom properties), not the marketing site — the
+   * product we're modelling is a dashboard, so its actual app chrome is the
+   * more relevant reference than allocations.com's landing-page CTA colours.
+   * --secondary/--secondary-foreground are a deliberate exception: their app
+   * uses a dark warm-brown chip for secondary in both modes, which would turn
+   * every default Badge (status pills across Investments/Distributions/Users)
+   * and the sidebar's active-link highlight into a dark chip on a light page.
+   * That's a bigger visual change than a colour-match pass should make
+   * unreviewed, so secondary stays our existing light neutral.
+   */
+  :root {
+    --background: 45 22.2% 96.5%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 214 51.7% 11.4%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 40 20% 94%;
+    --secondary-foreground: 222.2 84% 4.9%;
+
+    --muted: 46.7 24.3% 92.7%;
+    --muted-foreground: 212.1 16.9% 32.5%;
+
+    --accent: 46.7 24.3% 92.7%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 214 51.7% 11.4%;
+
+    /* Money and state. Positive/negative are deliberately not the chart hues:
+       a number's sign should not look like a series. */
+    --positive: 159 73% 30%;
+    --positive-foreground: 0 0% 100%;
+    --negative: 0 73% 42%;
+    --negative-foreground: 0 0% 100%;
+    --warning: 32 92% 34%;
+    --warning-foreground: 0 0% 100%;
+
+    /* Categorical chart slots, in fixed order. Never cycled, never reordered. */
+    --chart-1: 213 68% 50%; /* blue    */
+    --chart-2: 17 82% 56%; /* orange  */
+    --chart-3: 159 73% 40%; /* aqua    */
+    --chart-4: 41 100% 46%; /* yellow  */
+    --chart-5: 337 70% 70%; /* magenta */
+    --chart-6: 120 100% 26%; /* green   */
+    --chart-7: 249 48% 44%; /* violet  */
+
+    --radius: 0.5rem;
+  }
+
+  /*
+   * Dark tokens, same source as light: dashboard.allocations.com's own .dark
+   * block. Notably their --primary does not brighten in dark mode — it's the
+   * same near-black navy in both, resting a few points lighter than the dark
+   * background (11.4% vs 4.9% lightness) rather than swapping to a bright
+   * accent blue. Kept as scanned rather than "fixed" to be more contrasty.
+   */
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 214 51.7% 11.4%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 214 25% 17%;
+    --secondary-foreground: 45 25% 96%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+
+    --positive: 159 73% 40%;
+    --positive-foreground: 222 47% 11%;
+    --negative: 0 72% 65%;
+    --negative-foreground: 222 47% 11%;
+    --warning: 40 100% 45%;
+    --warning-foreground: 222 47% 11%;
+
+    --chart-1: 213 77% 56%;
+    --chart-2: 17 70% 50%;
+    --chart-3: 159 73% 36%;
+    --chart-4: 40 100% 39%;
+    --chart-5: 338 61% 58%;
+    --chart-6: 120 100% 26%;
+    --chart-7: 247 69% 72%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings:
+      'rlig' 1,
+      'calt' 1;
+  }
+
+  /* Money reads as a column, so digits must not jiggle between rows. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
+  }
+}
+
+@layer utilities {
+  /* Keeps a wide table scrollable inside its card instead of pushing the page
+     sideways on a phone. */
+  .scroll-x {
+    @apply -mx-1 overflow-x-auto px-1;
+    scrollbar-width: thin;
+  }
+}

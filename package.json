@@ -1,0 +1,27 @@
+{
+  "name": "advani-family-office-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Internal admin dashboard for the Advani Family Office — Nest.js API and Next.js frontend.",
+  "license": "UNLICENSED",
+  "comment": "Deliberately not an npm workspace: each app installs independently so Vercel can build either one from its own Root Directory without hoisting surprises. These scripts are convenience wrappers for local work.",
+  "scripts": {
+    "install:all": "npm install --prefix apps/api && npm install --prefix apps/web",
+    "dev:api": "npm run dev --prefix apps/api",
+    "dev:web": "npm run dev --prefix apps/web",
+    "build": "npm run build --prefix apps/api && npm run build --prefix apps/web",
+    "typecheck": "npm run typecheck --prefix apps/api && npm run typecheck --prefix apps/web",
+    "test": "npm test --prefix apps/api",
+    "test:e2e": "npm run test:e2e --prefix apps/api",
+    "db:migrate": "npm run prisma:migrate --prefix apps/api",
+    "db:deploy": "npm run prisma:deploy --prefix apps/api",
+    "db:seed": "npm run seed --prefix apps/api",
+    "db:studio": "npm run prisma:studio --prefix apps/api"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "prisma": "^7.9.1"
+  }
+}

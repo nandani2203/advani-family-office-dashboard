@@ -1,0 +1,1125 @@
+{
+  "info": {
+    "_postman_id": "8f2b1c40-6c1e-4f2a-9c1b-2b7d5a9e4c10",
+    "name": "Advani Family Office — Internal Dashboard API",
+    "description": "Every endpoint on the internal dashboard API.\n\n## Getting started\n\n1. Import `advani-dashboard.postman_environment.json` and select it.\n2. Point `baseUrl` at your API (`http://localhost:4000/api` or the Vercel URL).\n3. Send any request.\n\nThere is no sign-in step to perform by hand. A collection-level pre-request script notices that no `accessToken` is set, requests an OTP for `email`, reads the code straight out of the response (email delivery is disabled on this deployment, so the API returns it), verifies it, and stores the token pair. Every other request inherits bearer auth from the collection.\n\nTo sign in as somebody else, change `email` and clear `accessToken`.\n\n## Roles\n\nUnder open signup the first account to sign in becomes ADMIN and everyone after that becomes EDITOR. To exercise the RBAC failures, set a user to VIEWER via `PATCH /users/{id}/role`, then sign in as them and try a write — the API answers 403.\n\nList requests capture the first row's id into a collection variable (`assetId`, `investmentId`, and so on), so the detail, update and delete requests below them work without copying ids around.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Signs in on demand, so no request in this collection needs a manual token.",
+          "const path = pm.request.url.getPath();",
+          "",
+          "// The auth and health endpoints must not trigger a sign-in of their own.",
+          "if (path.indexOf('/auth/') !== -1 || path.indexOf('/health') !== -1) {",
+          "  return;",
+          "}",
+          "",
+          "if (pm.collectionVariables.get('accessToken')) {",
+          "  return;",
+          "}",
+          "",
+          "const baseUrl = pm.environment.get('baseUrl') || pm.collectionVariables.get('baseUrl');",
+          "const email = pm.environment.get('email') || pm.collectionVariables.get('email');",
+          "",
+          "const json = (body) => ({",
+          "  mode: 'raw',",
+          "  raw: JSON.stringify(body),",
+          "  options: { raw: { language: 'json' } },",
+          "});",
+          "",
+          "console.log('No access token — signing in as ' + email);",
+          "",
+          "pm.sendRequest(",
+          "  {",
+          "    url: baseUrl + '/auth/request-otp',",
+          "    method: 'POST',",
+          "    header: { 'Content-Type': 'application/json' },",
+          "    body: json({ email: email }),",
+          "  },",
+          "  (otpError, otpResponse) => {",
+          "    if (otpError) {",
+          "      console.error('Could not reach the API: ' + otpError);",
+          "      return;",
+          "    }",
+          "",
+          "    const challenge = otpResponse.json();",
+          "",
+          "    if (!challenge.devCode) {",
+          "      console.error(",
+          "        'The API did not return a code, so EXPOSE_OTP is off. Set accessToken by hand.',",
+          "      );",
+          "      return;",
+          "    }",
+          "",
+          "    pm.sendRequest(",
+          "      {",
+          "        url: baseUrl + '/auth/verify-otp',",
+          "        method: 'POST',",
+          "        header: { 'Content-Type': 'application/json' },",
+          "        body: json({ email: email, code: challenge.devCode }),",
+          "      },",
+          "      (verifyError, verifyResponse) => {",
+          "        if (verifyError) {",
+          "          console.error('Could not verify the code: ' + verifyError);",
+          "          return;",
+          "        }",
+          "",
+          "        const session = verifyResponse.json();",
+          "        pm.collectionVariables.set('accessToken', session.accessToken);",
+          "        pm.collectionVariables.set('refreshToken', session.refreshToken);",
+          "        pm.collectionVariables.set('currentUserId', session.user.id);",
+          "        console.log('Signed in as ' + session.user.email + ' (' + session.user.role + ')');",
+          "      },",
+          "    );",
+          "  },",
+          ");"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:4000/api", "type": "string" },
+    { "key": "email", "value": "reviewer@advanifamilyoffice.com", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "refreshToken", "value": "", "type": "string" },
+    { "key": "currentUserId", "value": "", "type": "string" },
+    { "key": "assetId", "value": "", "type": "string" },
+    { "key": "investmentId", "value": "", "type": "string" },
+    { "key": "transactionId", "value": "", "type": "string" },
+    { "key": "distributionId", "value": "", "type": "string" },
+    { "key": "filingId", "value": "", "type": "string" },
+    { "key": "userId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /health",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] },
+            "description": "Liveness probe with a database round-trip. Returns `{ status, database, uptime }`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('database is up', () => {",
+                  "  pm.expect(pm.response.json().database).to.eql('up');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "GET /auth/config",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/config",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "config"]
+            },
+            "description": "Tells the login screen whether open signup is on."
+          }
+        },
+        {
+          "name": "POST /auth/request-otp",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/request-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "request-otp"]
+            },
+            "description": "Issues a six-digit code. Rate-limited to 5 per minute. While `EXPOSE_OTP` is on the code comes back as `devCode`, because email delivery is not wired up on this deployment.\n\nThe code is stored hashed, is single-use, expires after 10 minutes, and is capped at 5 wrong attempts."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.devCode) {",
+                  "  pm.collectionVariables.set('otpCode', body.devCode);",
+                  "  pm.test('code is six digits', () => {",
+                  "    pm.expect(body.devCode).to.match(/^[0-9]{6}$/);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /auth/verify-otp",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"code\": \"{{otpCode}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "verify-otp"]
+            },
+            "description": "Exchanges the code for an access token (15 minutes) and a refresh token (30 days). Run `request-otp` first — its test script captures `otpCode`."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const session = pm.response.json();",
+                  "pm.collectionVariables.set('accessToken', session.accessToken);",
+                  "pm.collectionVariables.set('refreshToken', session.refreshToken);",
+                  "pm.collectionVariables.set('currentUserId', session.user.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /auth/me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] },
+            "description": "The signed-in user, read fresh from the database rather than from the token."
+          }
+        },
+        {
+          "name": "POST /auth/refresh",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            },
+            "description": "Rotates the refresh token. Sending the same token twice is treated as a leak: every session for that user is revoked and the call answers 401. Send this request twice in a row to see it."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const session = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', session.accessToken);",
+                  "  pm.collectionVariables.set('refreshToken', session.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /auth/logout",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            },
+            "description": "Revokes the presented session. Omit the body to revoke every session for the user."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Clear the tokens so the next request signs in again.",
+                  "pm.collectionVariables.set('accessToken', '');",
+                  "pm.collectionVariables.set('refreshToken', '');"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Dashboard",
+      "item": [
+        {
+          "name": "GET /dashboard/summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "summary"]
+            },
+            "description": "Every KPI, chart series and panel on the overview screen, computed server-side in a single database round-trip:\n\n- `kpis` — portfolio valuation, cost basis, unrealised gain, position counts, filings due soon\n- `cashflow` — trailing 12 months, grouped by month, VOID excluded, zero-filled\n- `valuationByAssetType` — grouped by the underlying asset's type\n- `distributions` — paid against pending\n- `committedVsDeployed` — and the uncalled remainder\n- `recentTransactions`, `upcomingFilings`"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('unrealised gain is valuation less cost basis', () => {",
+                  "  pm.expect(body.kpis.unrealisedGain).to.be.closeTo(",
+                  "    body.kpis.portfolioValuation - body.kpis.costBasis,",
+                  "    0.01,",
+                  "  );",
+                  "});",
+                  "pm.test('cashflow covers twelve months', () => {",
+                  "  pm.expect(body.cashflow.months).to.have.lengthOf(12);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Assets",
+      "item": [
+        {
+          "name": "GET /assets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/assets?page=1&pageSize=25&sortBy=name&sortDir=asc",
+              "host": ["{{baseUrl}}"],
+              "path": ["assets"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "sortBy", "value": "name" },
+                { "key": "sortDir", "value": "asc" },
+                { "key": "search", "value": "spacex", "disabled": true },
+                { "key": "type", "value": "CRYPTO", "disabled": true },
+                { "key": "sector", "value": "Fintech", "disabled": true }
+              ]
+            },
+            "description": "Paginated, searchable, filterable. `sortBy` only accepts an allow-listed column; anything else falls back to the default."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('is paginated', () => pm.expect(body.meta).to.have.property('totalPages'));",
+                  "if (body.data.length) pm.collectionVariables.set('assetId', body.data[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /assets/options",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/assets/options",
+              "host": ["{{baseUrl}}"],
+              "path": ["assets", "options"]
+            },
+            "description": "Minimal list for select inputs."
+          }
+        },
+        {
+          "name": "GET /assets/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/assets/{{assetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["assets", "{{assetId}}"]
+            },
+            "description": "One asset with the positions held against it."
+          }
+        },
+        {
+          "name": "POST /assets",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Test Holding\",\n  \"type\": \"PRIVATE_EQUITY\",\n  \"ticker\": \"PTH\",\n  \"sector\": \"Testing\",\n  \"description\": \"Created from the Postman collection.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/assets", "host": ["{{baseUrl}}"], "path": ["assets"] },
+            "description": "ADMIN or EDITOR. A VIEWER token gets 403."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('assetId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /assets/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sector\": \"Aerospace\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/assets/{{assetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["assets", "{{assetId}}"]
+            },
+            "description": "ADMIN or EDITOR."
+          }
+        },
+        {
+          "name": "DELETE /assets/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/assets/{{assetId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["assets", "{{assetId}}"]
+            },
+            "description": "ADMIN only. Refused with a 400 while any investment still points at the asset."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Investments",
+      "item": [
+        {
+          "name": "GET /investments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/investments?page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["investments"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "search", "value": "spacex", "disabled": true },
+                { "key": "status", "value": "ACTIVE", "disabled": true },
+                { "key": "vehicle", "value": "SPV", "disabled": true },
+                { "key": "assetId", "value": "{{assetId}}", "disabled": true },
+                { "key": "sortBy", "value": "currentValuation", "disabled": true },
+                { "key": "sortDir", "value": "desc", "disabled": true }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.data.length) pm.collectionVariables.set('investmentId', body.data[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /investments/options",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/investments/options",
+              "host": ["{{baseUrl}}"],
+              "path": ["investments", "options"]
+            }
+          }
+        },
+        {
+          "name": "GET /investments/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/investments/{{investmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["investments", "{{investmentId}}"]
+            },
+            "description": "One position with its asset, recent valuation marks, transactions and distributions."
+          }
+        },
+        {
+          "name": "POST /investments",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assetId\": \"{{assetId}}\",\n  \"vehicle\": \"SPV\",\n  \"vehicleName\": \"Advani SPV 99 — Postman\",\n  \"committedAmount\": 25000000,\n  \"investedAmount\": 25000000,\n  \"costBasis\": 25000000,\n  \"currentValuation\": 41500000,\n  \"ownershipPct\": 0.42,\n  \"status\": \"ACTIVE\",\n  \"investedAt\": \"2024-04-18\",\n  \"notes\": \"Created from the Postman collection.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/investments",
+              "host": ["{{baseUrl}}"],
+              "path": ["investments"]
+            },
+            "description": "ADMIN or EDITOR. Also writes the opening valuation mark, so the history starts on the day of entry."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('investmentId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /investments/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentValuation\": 44000000,\n  \"status\": \"ACTIVE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/investments/{{investmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["investments", "{{investmentId}}"]
+            }
+          }
+        },
+        {
+          "name": "POST /investments/{id}/valuations",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"asOf\": \"2026-06-30\",\n  \"value\": 47500000,\n  \"source\": \"Q2 2026 secondary print\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/investments/{{investmentId}}/valuations",
+              "host": ["{{baseUrl}}"],
+              "path": ["investments", "{{investmentId}}", "valuations"]
+            },
+            "description": "Records a mark and moves the position's current valuation in the same transaction, so the portfolio total and the history can never disagree."
+          }
+        },
+        {
+          "name": "DELETE /investments/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/investments/{{investmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["investments", "{{investmentId}}"]
+            },
+            "description": "ADMIN only. Transactions, distributions and valuations cascade."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Transactions",
+      "item": [
+        {
+          "name": "GET /transactions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/transactions?page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "type", "value": "CAPITAL_CALL", "disabled": true },
+                { "key": "direction", "value": "OUTFLOW", "disabled": true },
+                { "key": "status", "value": "SETTLED", "disabled": true },
+                { "key": "investmentId", "value": "{{investmentId}}", "disabled": true },
+                { "key": "from", "value": "2026-01-01", "disabled": true },
+                { "key": "to", "value": "2026-12-31", "disabled": true },
+                { "key": "search", "value": "wire", "disabled": true }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.data.length) pm.collectionVariables.set('transactionId', body.data[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /transactions/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "{{transactionId}}"]
+            }
+          }
+        },
+        {
+          "name": "POST /transactions",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"investmentId\": \"{{investmentId}}\",\n  \"type\": \"CAPITAL_CALL\",\n  \"amount\": 1500000,\n  \"occurredAt\": \"2026-03-14\",\n  \"status\": \"SETTLED\",\n  \"reference\": \"WIRE-2026-0314-08\",\n  \"description\": \"Capital call 3 of 5\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions"]
+            },
+            "description": "`direction` is optional — it defaults to the natural direction for the type. Calls, purchases and fees go out; sales, dividends and interest come in."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('transactionId', body.id);",
+                  "  pm.test('direction derived from the type', () => {",
+                  "    pm.expect(body.direction).to.eql('OUTFLOW');",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /transactions/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"VOID\",\n  \"description\": \"Duplicate wire — voided by finance\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "{{transactionId}}"]
+            },
+            "description": "Voiding is the reversal path: the row stays on the record but drops out of every total, including the overview's cashflow chart."
+          }
+        },
+        {
+          "name": "DELETE /transactions/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/transactions/{{transactionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["transactions", "{{transactionId}}"]
+            },
+            "description": "ADMIN only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Distributions",
+      "item": [
+        {
+          "name": "GET /distributions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/distributions?page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["distributions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "status", "value": "PAID", "disabled": true },
+                { "key": "investmentId", "value": "{{investmentId}}", "disabled": true },
+                { "key": "from", "value": "2026-01-01", "disabled": true },
+                { "key": "to", "value": "2026-12-31", "disabled": true }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.data.length) pm.collectionVariables.set('distributionId', body.data[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /distributions/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/distributions/{{distributionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["distributions", "{{distributionId}}"]
+            }
+          }
+        },
+        {
+          "name": "POST /distributions",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"investmentId\": \"{{investmentId}}\",\n  \"declaredDate\": \"2026-02-10\",\n  \"grossAmount\": 3200000,\n  \"withholdingTax\": 480000,\n  \"notes\": \"Proceeds from a partial secondary sale\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/distributions",
+              "host": ["{{baseUrl}}"],
+              "path": ["distributions"]
+            },
+            "description": "`netAmount` is derived as gross less withholding and is never accepted from the client. Withholding above the gross is a 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const body = pm.response.json();",
+                  "  pm.collectionVariables.set('distributionId', body.id);",
+                  "  pm.test('net is gross less withholding', () => {",
+                  "    pm.expect(body.netAmount).to.eql(body.grossAmount - body.withholdingTax);",
+                  "  });",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /distributions/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"grossAmount\": 3500000,\n  \"withholdingTax\": 525000\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/distributions/{{distributionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["distributions", "{{distributionId}}"]
+            },
+            "description": "The investment cannot be reassigned — that would corrupt two positions' history at once."
+          }
+        },
+        {
+          "name": "PATCH /distributions/{id}/status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"APPROVED\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/distributions/{{distributionId}}/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["distributions", "{{distributionId}}", "status"]
+            },
+            "description": "The declared → approved → paid workflow. Skipping a step is a 400. Moving to PAID stamps the payment date; pass `paymentDate` to set it explicitly."
+          }
+        },
+        {
+          "name": "DELETE /distributions/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/distributions/{{distributionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["distributions", "{{distributionId}}"]
+            },
+            "description": "ADMIN only, and never for a distribution that has already been paid."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Filings",
+      "item": [
+        {
+          "name": "GET /filings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/filings?page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["filings"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "dueSoon", "value": "true", "disabled": true },
+                { "key": "type", "value": "VAT", "disabled": true },
+                { "key": "status", "value": "OPEN", "disabled": true },
+                { "key": "assigneeId", "value": "{{userId}}", "disabled": true }
+              ]
+            },
+            "description": "Sorted by the nearest deadline unless `sortBy` says otherwise. `dueSoon=true` narrows to open work due within 30 days — the same window the overview KPI counts."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.data.length) pm.collectionVariables.set('filingId', body.data[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /filings/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/filings/{{filingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["filings", "{{filingId}}"]
+            }
+          }
+        },
+        {
+          "name": "POST /filings",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicleName\": \"Advani Holdings DIFC Ltd\",\n  \"type\": \"VAT\",\n  \"jurisdiction\": \"DIFC, UAE\",\n  \"dueDate\": \"2026-09-30\",\n  \"status\": \"OPEN\",\n  \"notes\": \"Quarterly VAT return for the UAE management entity.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/filings", "host": ["{{baseUrl}}"], "path": ["filings"] }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('filingId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /filings/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"SUBMITTED\",\n  \"assigneeId\": \"{{currentUserId}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/filings/{{filingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["filings", "{{filingId}}"]
+            },
+            "description": "Reaching SUBMITTED or CLOSED stamps `submittedAt` once; reopening the filing clears it, so the record never claims outstanding work was filed."
+          }
+        },
+        {
+          "name": "DELETE /filings/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/filings/{{filingId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["filings", "{{filingId}}"]
+            },
+            "description": "ADMIN only."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "GET /users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users?page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["users"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "role", "value": "EDITOR", "disabled": true },
+                { "key": "status", "value": "ACTIVE", "disabled": true },
+                { "key": "search", "value": "advani", "disabled": true }
+              ]
+            },
+            "description": "Readable by any authenticated user; only an ADMIN can change anything."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "if (body.data.length) pm.collectionVariables.set('userId', body.data[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /users/options",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/options",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "options"]
+            },
+            "description": "Minimal list for the filing-assignee picker."
+          }
+        },
+        {
+          "name": "GET /users/audit-logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/audit-logs?page=1&pageSize=25",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "audit-logs"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "25" },
+                { "key": "resource", "value": "investment", "disabled": true },
+                { "key": "action", "value": "update", "disabled": true },
+                { "key": "actorId", "value": "{{userId}}", "disabled": true }
+              ]
+            },
+            "description": "ADMIN only. Who changed what, written by an interceptor on every mutation."
+          }
+        },
+        {
+          "name": "GET /users/{id}",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}"]
+            }
+          }
+        },
+        {
+          "name": "POST /users",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"postman-invite@advanifamilyoffice.com\",\n  \"name\": \"Postman Invite\",\n  \"role\": \"VIEWER\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/users", "host": ["{{baseUrl}}"], "path": ["users"] },
+            "description": "ADMIN only. The account starts INVITED and flips to ACTIVE on its first successful sign-in."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.collectionVariables.set('userId', pm.response.json().id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH /users/{id}/role",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"VIEWER\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}/role",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}", "role"]
+            },
+            "description": "ADMIN only. Use this to make an account a VIEWER, then sign in as them to see a write refused with 403. Demoting or suspending the last active administrator is refused."
+          }
+        },
+        {
+          "name": "PATCH /users/{id}",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Renamed by Postman\",\n  \"status\": \"ACTIVE\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}"]
+            },
+            "description": "ADMIN only. Email is immutable — it is the sign-in identity. Changing a role or suspending an account revokes that user's outstanding sessions."
+          }
+        },
+        {
+          "name": "DELETE /users/{id}",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}"]
+            },
+            "description": "ADMIN only. You cannot delete your own account or the last active administrator."
+          }
+        }
+      ]
+    }
+  ]
+}
