@@ -19,7 +19,14 @@ Thumbs.db
 *.log
 npm-debug.log*
 
-/generated/prisma
+
+# Vendored AI-tool skill docs — third-party Prisma reference material pulled in
+# by a skills installer, not part of this project. skills-lock.json records each
+# one's source and hash, so any of these directories can be re-installed.
+# Which assistant a developer uses is their own choice, so none of it is shared.
+.agents/
+.claude/
+.windsurf/
 
 # Assistant working notes — not part of the shipped project.
 CLAUDE.md
