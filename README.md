@@ -156,9 +156,18 @@ Each app installs independently — there is no workspace root, so a single `npm
 does nothing:
 
 ```bash
-npm install --prefix apps/api    # or: npm run install:all
-npm install --prefix apps/web
+cd apps/api && npm install
+cd ../web  && npm install
+# or, from the repository root: npm run install:all
 ```
+
+**Install with `cd`, never with `npm install --prefix`.** Run from the repository root,
+`npm install --prefix apps/api` installs *this* root package into `apps/api`: it rewrites that
+app's `package.json` with a self-referential `"advani-family-office-dashboard": "file:../.."`
+dependency and skips the app's own `postinstall`, so `prisma generate` never runs and `tsc` then
+fails with around forty phantom `has no exported member` errors from `@prisma/client`. `--prefix` is
+fine for the other root wrappers (`dev:api`, `typecheck`, `test`, `db:*`) — those only pick a
+directory.
 
 `postinstall` runs `prisma generate`, so the Prisma client is rebuilt from `schema.prisma`
 automatically. If you copied `node_modules` across machines, re-run `npx prisma generate` in
