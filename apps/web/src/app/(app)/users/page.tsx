@@ -1,7 +1,7 @@
 'use client';
 
-import { Info, Plus, UserCheck, UserX } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Info, Plus, ShieldCheck, UserCheck, UserX } from 'lucide-react';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import { ConfirmDialog, RowActionButtons } from '@/components/confirm-dialog';
 import { Column, DataTable } from '@/components/data-table';
@@ -14,12 +14,12 @@ import {
   optionsFrom,
 } from '@/components/filter-bar';
 import { Field, FieldRow, FormSheet } from '@/components/form-sheet';
+import { GrantAccessDialog } from '@/components/grant-access-dialog';
 import { PageHeader } from '@/components/page-header';
 import { RoleBadge, UserStatusBadge } from '@/components/status-badge';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -31,32 +31,15 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ApiError, api } from '@/lib/api-client';
 import { useAuth } from '@/lib/auth-context';
 import { formatDateTime, humanise } from '@/lib/format';
-import { useList, useResource } from '@/lib/use-list';
+import { useList } from '@/lib/use-list';
 import {
-  PERMISSION_LEVEL_DESCRIPTIONS,
-  PERMISSION_LEVEL_LABELS,
-  PERMISSION_RESOURCE_LABELS,
   ROLE_DESCRIPTIONS,
   ROLE_LABELS,
   USER_STATUS_LABELS,
   type ApiUser,
   type AuditLog,
-  type PermissionLevel,
-  type PermissionResource,
   type Role,
-  type UserPermission,
 } from '@/lib/types';
-
-const PERMISSION_RESOURCES: PermissionResource[] = [
-  'INVESTMENTS',
-  'ASSETS',
-  'TRANSACTIONS',
-  'DISTRIBUTIONS',
-  'FILINGS',
-];
-
-/** Radix Select needs a non-empty value, so "no override" is a sentinel. */
-const NO_OVERRIDE = '__none__';
 
 export default function UsersPage(): JSX.Element {
   const { isAdmin, user: currentUser } = useAuth();
@@ -122,25 +105,15 @@ function StaffTable({
     name: '',
     role: 'VIEWER',
   });
-  const [grants, setGrants] = useState<Record<PermissionResource, PermissionLevel | null>>(
-    Object.fromEntries(PERMISSION_RESOURCES.map((resource) => [resource, null])) as Record<
-      PermissionResource,
-      PermissionLevel | null
-    >,
-  );
+  // Direct grants live in their own dialog; `grantUserId` pre-selects a row's
+  // account when it is opened from that row rather than from the toolbar.
+  const [grantOpen, setGrantOpen] = useState(false);
+  const [grantUserId, setGrantUserId] = useState<string | null>(null);
 
-  const { data: existingGrants } = useResource<UserPermission[]>(
-    editingUser ? `/users/${editingUser.id}/permissions` : '',
-    { enabled: editingUser !== null },
-  );
-
-  useEffect(() => {
-    const next = Object.fromEntries(
-      PERMISSION_RESOURCES.map((resource) => [resource, null]),
-    ) as Record<PermissionResource, PermissionLevel | null>;
-    for (const grant of existingGrants ?? []) next[grant.resource] = grant.level;
-    setGrants(next);
-  }, [existingGrants]);
+  const openGrants = (id: string | null): void => {
+    setGrantUserId(id);
+    setGrantOpen(true);
+  };
 
   const openEditUser = (user: ApiUser): void => {
     setEditingUser(user);
@@ -245,16 +218,22 @@ function StaffTable({
               ]}
             />
             {isAdmin ? (
-              <Button
-                size="sm"
-                onClick={() => {
-                  setInvite({ email: '', name: '', role: 'VIEWER' });
-                  setInviteOpen(true);
-                }}
-              >
-                <Plus className="h-4 w-4" />
-                Invite user
-              </Button>
+              <>
+                <Button variant="outline" size="sm" onClick={() => openGrants(null)}>
+                  <ShieldCheck className="h-4 w-4" />
+                  Grant access
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setInvite({ email: '', name: '', role: 'VIEWER' });
+                    setInviteOpen(true);
+                  }}
+                >
+                  <Plus className="h-4 w-4" />
+                  Invite user
+                </Button>
+              </>
             ) : null}
           </div>
         </div>
@@ -354,7 +333,7 @@ function StaffTable({
           if (!open) setEditingUser(null);
         }}
         title="Edit user"
-        description="Role sets the account's baseline access. The grants below narrowly widen just one resource, without changing the role."
+        description="Role sets the account's baseline access. Direct grants widen a single resource on top of it, and are managed separately."
         submitLabel="Save changes"
         successMessage="Account updated."
         onSubmit={async () => {
@@ -362,9 +341,6 @@ function StaffTable({
           await api.patch(`/users/${editingUser.id}`, {
             name: editDraft.name.trim() || undefined,
             role: editDraft.role,
-          });
-          await api.put(`/users/${editingUser.id}/permissions`, {
-            grants: PERMISSION_RESOURCES.map((resource) => ({ resource, level: grants[resource] })),
           });
           list.refresh();
         }}
@@ -440,42 +416,38 @@ function StaffTable({
           </div>
         ) : null}
 
-        <div className="flex flex-col gap-2">
-          <Label>Per-resource access</Label>
-          <p className="text-xs text-muted-foreground">
-            Narrower than a full role change — grants Write or Full on just one resource, on top
-            of whatever the role above already allows.
-          </p>
-          <div className="flex flex-col divide-y rounded-md border">
-            {PERMISSION_RESOURCES.map((resource) => (
-              <div key={resource} className="flex items-center justify-between gap-3 px-3 py-2">
-                <span className="text-sm">{PERMISSION_RESOURCE_LABELS[resource]}</span>
-                <Select
-                  value={grants[resource] ?? NO_OVERRIDE}
-                  onValueChange={(value) =>
-                    setGrants({
-                      ...grants,
-                      [resource]: value === NO_OVERRIDE ? null : (value as PermissionLevel),
-                    })
-                  }
-                >
-                  <SelectTrigger className="w-36">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value={NO_OVERRIDE}>No override</SelectItem>
-                    {(Object.keys(PERMISSION_LEVEL_LABELS) as PermissionLevel[]).map((level) => (
-                      <SelectItem key={level} value={level} title={PERMISSION_LEVEL_DESCRIPTIONS[level]}>
-                        {PERMISSION_LEVEL_LABELS[level]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ))}
+        {editingUser ? (
+          <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2">
+            <div>
+              <p className="text-sm font-medium">Direct access</p>
+              <p className="text-xs text-muted-foreground">
+                Widen a single resource without changing the role above.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                // The sheet and the dialog would otherwise stack, and the sheet
+                // is the one holding a half-finished name edit.
+                setEditOpen(false);
+                openGrants(editingUser.id);
+              }}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Manage
+            </Button>
           </div>
-        </div>
+        ) : null}
       </FormSheet>
+
+      <GrantAccessDialog
+        open={grantOpen}
+        onOpenChange={setGrantOpen}
+        initialUserId={grantUserId}
+        onSaved={list.refresh}
+      />
 
       <ConfirmDialog
         open={deleting !== null}
