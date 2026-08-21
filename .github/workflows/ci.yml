@@ -61,7 +61,14 @@ jobs:
       - name: Create the shadow database
         # `migrate diff --from-migrations` resets whatever database it is pointed
         # at, so it gets its own rather than the one the tests use.
-        run: psql "$DIRECT_URL" -c 'CREATE DATABASE allocations_shadow'
+        #
+        # Connection given as discrete flags rather than reusing DIRECT_URL:
+        # that URL carries Prisma's `?schema=` parameter, and psql is libpq,
+        # which rejects unknown URI query parameters outright with
+        # `invalid URI query parameter: "schema"`. Passing the URL through
+        # failed this step on every run, and because every later step depends
+        # on it, the typecheck and the whole test suite were silently skipped.
+        run: psql -h localhost -p 5432 -U postgres -d postgres -c 'CREATE DATABASE allocations_shadow'
         env:
           PGPASSWORD: postgres
 
