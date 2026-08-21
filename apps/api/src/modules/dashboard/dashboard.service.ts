@@ -158,7 +158,9 @@ export class DashboardService {
         JOIN assets a ON a.id = i.asset_id
         WHERE i.status = CAST(${InvestmentStatus.ACTIVE} AS "InvestmentStatus")
         GROUP BY a.type
-        ORDER BY 2 DESC
+        -- Order on the numeric sum, not the ::text column at ordinal 2, which
+        -- would sort "65000000" above "2026000000".
+        ORDER BY SUM(i.current_valuation) DESC
       `,
       this.prisma.transaction.findMany({
         where: { status: { not: TransactionStatus.VOID } },

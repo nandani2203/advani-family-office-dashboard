@@ -26,7 +26,14 @@ import { HealthModule } from './modules/health/health.module';
       validate: validateEnv,
       envFilePath: ['.env.local', '.env'],
     }),
-    ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),
+    ThrottlerModule.forRoot({
+      throttlers: [{ name: 'default', ttl: 60_000, limit: 120 }],
+      // The e2e suite signs in far more than five times a minute, and
+      // `POST /auth/request-otp` is deliberately capped at five. Rate limiting
+      // is not what those specs exercise, so it is skipped under NODE_ENV=test
+      // (set by test/global-setup.ts) and fully in force everywhere else.
+      skipIf: () => process.env.NODE_ENV === 'test',
+    }),
     PrismaModule,
     AuthModule,
     UsersModule,
